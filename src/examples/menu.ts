@@ -42,7 +42,7 @@ export function HELP_TEXT(examples: readonly Example[]): string {
         'zapo-interactive-examples commands:',
         '• /menu: interactive list of the examples',
         ...examples.map((example) => `• /${example.command}: ${example.description}`),
-        '• /groups: list this account groups and their ids (for ALLOWED_GROUPS)',
+        "• /groups: this account's groups and their ids, for ALLOWED_GROUPS (only in your own chat)",
         '• /help: this list'
     ].join('\n')
 }

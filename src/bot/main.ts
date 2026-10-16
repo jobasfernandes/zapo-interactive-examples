@@ -9,31 +9,15 @@ import { EXAMPLES } from '../examples/index.js'
 import { buildMenu, HELP_TEXT } from '../examples/menu.js'
 import { replyToOrder } from '../examples/order.js'
 import type { ExampleContext, SendContent } from '../examples/types.js'
-import type { ChatContext } from '../lib/access.js'
 import { connectAndWait, createRuntime, ownJids } from '../lib/client.js'
 import { loadConfig } from '../lib/config.js'
 import { createLogger, formatResponse } from '../lib/log.js'
-import { decide, isStale } from './handle.js'
+import { chatContext, decide, isStale } from './handle.js'
 
 const config = loadConfig()
 const runtime = await createRuntime(config)
 const { log } = createLogger('bot')
 const sentByBot = new Set<string>()
-
-function chatContext(event: WaIncomingMessageEvent): ChatContext {
-    const { key } = event
-    const own = ownJids(runtime)
-    // In a group the sender is the participant; in a private chat it is the chat itself.
-    const sender = key.isGroup ? [key.participant, key.participantAlt] : [key.remoteJid, key.remoteJidAlt]
-    return {
-        chatJid: key.remoteJid ?? '',
-        isGroup: key.isGroup,
-        fromMe: key.fromMe ?? false,
-        senderPn: sender.find((jid) => jid?.endsWith('@s.whatsapp.net')) ?? undefined,
-        senderLid: sender.find((jid) => jid?.endsWith('@lid')) ?? undefined,
-        selfJids: [own.pn, own.lid].filter((jid): jid is string => jid !== undefined)
-    }
-}
 
 async function reply(chatJid: string, content: SendContent): Promise<void> {
     const result = await runtime.client.message.send(chatJid, content)
@@ -42,10 +26,12 @@ async function reply(chatJid: string, content: SendContent): Promise<void> {
 
 async function handle(event: WaIncomingMessageEvent, startedAtSeconds: number): Promise<void> {
     if (isStale(event, startedAtSeconds)) return
-    const ctx = chatContext(event)
+    const ctx = chatContext(event.key, ownJids(runtime))
     const action = decide(event, ctx, config, sentByBot)
     if (action.kind === 'ignore') return
     log(`${action.kind.toUpperCase()} chat=${ctx.chatJid} from=${ctx.fromMe ? 'owner' : (ctx.senderPn ?? ctx.senderLid)}`)
+    // Not allowed: logged above (check ALLOWED_NUMBERS / ALLOWED_GROUPS), never answered.
+    if (action.kind === 'denied') return
 
     const exampleContext: ExampleContext = { runtime, config, chatJid: ctx.chatJid, log }
     switch (action.kind) {

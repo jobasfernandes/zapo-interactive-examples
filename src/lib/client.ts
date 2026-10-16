@@ -95,6 +95,14 @@ export function connectAndWait(runtime: Runtime): Promise<void> {
             console.log(`[connection] closed: ${event.reason} (code=${event.code})`)
             // Our own disconnect() (CLI exit, shutdown) must not bring the socket back.
             if (event.reason === 'client_disconnected') return
+            // Another process connected with the same session (e.g. `npm start` and `npm run send`
+            // together): reconnecting would make both kick each other out forever.
+            if (event.reason === 'stream_error_replaced') {
+                const error = new Error('another process is using this session (same AUTH_PATH and SESSION_ID); stop it first')
+                if (!opened) rejectOpen(error)
+                else console.error(`[connection] ${error.message}`)
+                return
+            }
             void reconnect()
         })
         client.connect().catch(rejectOpen)

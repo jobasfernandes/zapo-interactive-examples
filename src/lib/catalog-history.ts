@@ -15,10 +15,15 @@ export type StoredProduct = {
 export const NO_PRODUCTS_TEXT =
     "No catalog products found in this session's history. This example needs a WhatsApp Business account with a catalog that has already sent its products at least once (open a chat, attach > Catalog, send them)."
 
-/** int64 proto fields decode as Long ({ low, high }) or number depending on the value. */
+/**
+ * int64 proto fields decode as Long or number depending on the value. `Long.low` alone
+ * overflows above 2^31, which a price in IDR or VND reaches quickly.
+ */
 export function toNumber(value: unknown): number {
     if (typeof value === 'number') return value
-    if (value && typeof value === 'object' && 'low' in value) return Number((value as { low: number }).low)
+    if (value && typeof value === 'object' && typeof (value as { toNumber?: unknown }).toNumber === 'function') {
+        return (value as { toNumber: () => number }).toNumber()
+    }
     return Number(value ?? 0)
 }
 

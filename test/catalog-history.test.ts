@@ -44,6 +44,23 @@ describe('findSentProducts', () => {
         expect(products[0].priceAmount1000).toBe(20000)
     })
 
+    it('reads int64 prices above 2^31 (high-denomination currencies)', async () => {
+        const store = await memoryStore('big-price')
+        await store.sqlite.stores.messages(store.sessionId).upsert({
+            id: 'MSG4',
+            threadJid: '222222222222222@lid',
+            fromMe: true,
+            timestampMs: 1_000,
+            messageBytes: proto.Message.encode({
+                productMessage: { product: { productId: '1000000000000004', title: 'Item 4', currencyCode: 'IDR', priceAmount1000: 3_000_000_000 } }
+            }).finish()
+        })
+
+        const [product] = await findSentProducts(store)
+
+        expect(product.priceAmount1000).toBe(3_000_000_000)
+    })
+
     it('keeps the stored image untouched so zapo can download it (int64 fields stay Long)', async () => {
         const store = await memoryStore('image-longs')
         await store.sqlite.stores.messages(store.sessionId).upsert({

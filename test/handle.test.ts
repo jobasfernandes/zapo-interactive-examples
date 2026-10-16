@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { proto, type WaIncomingMessageEvent } from 'zapo-js'
 
-import { decide, isStale } from '../src/bot/handle.js'
+import { chatContext, decide, isStale } from '../src/bot/handle.js'
 import { EXAMPLES } from '../src/examples/index.js'
 import { buildMenu, HELP_TEXT } from '../src/examples/menu.js'
-import type { ChatContext } from '../src/lib/access.js'
+import { isAllowed, type ChatContext } from '../src/lib/access.js'
 import { parseConfig } from '../src/lib/config.js'
 
 const config = parseConfig({ ALLOWED_NUMBERS: '5511999999999' })
@@ -46,9 +46,27 @@ describe('decide', () => {
         expect(action.kind === 'example' && action.args).toEqual(['mixed'])
     })
 
-    it('ignores strangers and text without a slash', () => {
-        expect(decide(event(text('/form')), stranger, config, new Set())).toEqual({ kind: 'ignore' })
+    it('reports commands from people who are not allowed, and ignores their plain text', () => {
+        expect(decide(event(text('/form')), stranger, config, new Set())).toEqual({ kind: 'denied' })
+        expect(decide(event({ orderMessage: { orderId: '1' } }), stranger, config, new Set())).toEqual({ kind: 'denied' })
+        expect(decide(event(text('hello')), stranger, config, new Set())).toEqual({ kind: 'ignore' })
         expect(decide(event(text('menu')), owner, config, new Set())).toEqual({ kind: 'ignore' })
+    })
+
+    it('does not answer a cart the owner sends to another business', () => {
+        expect(decide(event({ orderMessage: { orderId: '1', itemCount: 1 } }), owner, config, new Set())).toEqual({ kind: 'ignore' })
+    })
+
+    it('lists groups only to the owner in the self-chat', () => {
+        const selfChat: ChatContext = { ...owner, chatJid: '111111111111111@lid' }
+        expect(decide(event(text('/groups')), selfChat, config, new Set())).toEqual({ kind: 'groups' })
+        expect(decide(event(text('/groups')), owner, config, new Set())).toEqual({ kind: 'ignore' })
+        expect(decide(event(text('/groups')), allowed, config, new Set())).toEqual({ kind: 'ignore' })
+    })
+
+    it('never treats its own help text or menu as a command, even without the sent-id guard', () => {
+        expect(decide(event(text(HELP_TEXT(EXAMPLES))), owner, config, new Set())).toEqual({ kind: 'ignore' })
+        expect(decide(event(buildMenu(EXAMPLES) as proto.IMessage), owner, config, new Set())).toEqual({ kind: 'ignore' })
     })
 
     it('ignores the echo of a message the bot sent', () => {
@@ -60,9 +78,8 @@ describe('decide', () => {
         expect(decide(event({ orderMessage: order }), allowed, config, new Set())).toEqual({ kind: 'order', order })
     })
 
-    it('answers unknown commands with help and routes groups', () => {
+    it('answers unknown commands with help', () => {
         expect(decide(event(text('/nope')), owner, config, new Set())).toEqual({ kind: 'help' })
-        expect(decide(event(text('/groups')), owner, config, new Set())).toEqual({ kind: 'groups' })
     })
 
     it('logs form answers and button replies', () => {
@@ -79,6 +96,39 @@ describe('decide', () => {
             kind: 'response',
             name: 'selection',
             paramsJson: '{"id":"legacy_yes"}'
+        })
+    })
+})
+
+describe('chatContext', () => {
+    const own = { pn: '5511000000000@s.whatsapp.net', lid: '111111111111111@lid' }
+
+    it('takes the sender PN from remoteJidAlt when a private chat is addressed by LID', () => {
+        const key = { remoteJid: '333333333333333@lid', remoteJidAlt: '5511999999999@s.whatsapp.net', fromMe: false, isGroup: false }
+        const ctx = chatContext(key as unknown as WaIncomingMessageEvent['key'], own)
+        expect(ctx).toMatchObject({
+            chatJid: '333333333333333@lid',
+            isGroup: false,
+            senderPn: '5511999999999@s.whatsapp.net',
+            senderLid: '333333333333333@lid',
+            selfJids: [own.pn, own.lid]
+        })
+        expect(isAllowed(ctx, config)).toBe(true)
+    })
+
+    it('takes the sender PN from participantAlt in a group', () => {
+        const key = {
+            remoteJid: '120363000000000000@g.us',
+            participant: '333333333333333@lid',
+            participantAlt: '5511999999999@s.whatsapp.net',
+            fromMe: false,
+            isGroup: true
+        }
+        expect(chatContext(key as unknown as WaIncomingMessageEvent['key'], own)).toMatchObject({
+            chatJid: '120363000000000000@g.us',
+            isGroup: true,
+            senderPn: '5511999999999@s.whatsapp.net',
+            senderLid: '333333333333333@lid'
         })
     })
 })

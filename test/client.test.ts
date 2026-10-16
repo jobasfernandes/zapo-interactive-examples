@@ -29,6 +29,19 @@ describe('connectAndWait', () => {
         expect(connect).toHaveBeenCalledTimes(1)
     })
 
+    it('stops instead of fighting another process that took over the session', async () => {
+        vi.useFakeTimers()
+        const { runtime, handlers, connect } = fakeRuntime()
+        const opened = connectAndWait(runtime)
+        handlers.get('connection')?.({ status: 'open' })
+        await opened
+
+        handlers.get('connection')?.({ status: 'close', reason: 'stream_error_replaced', code: null, isLogout: false })
+        await vi.advanceTimersByTimeAsync(5_000)
+
+        expect(connect).toHaveBeenCalledTimes(1)
+    })
+
     it('reconnects after an unexpected close', async () => {
         vi.useFakeTimers()
         const { runtime, handlers, connect } = fakeRuntime()
