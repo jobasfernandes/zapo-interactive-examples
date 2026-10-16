@@ -10,7 +10,7 @@ export function parseCommand(text: string | null | undefined): ParsedCommand | n
     return { name: head.toLowerCase(), args }
 }
 
-function unwrap(message: proto.IMessage | null | undefined): proto.IMessage | null | undefined {
+export function unwrap(message: proto.IMessage | null | undefined): proto.IMessage | null | undefined {
     let current = message
     for (;;) {
         const inner =
