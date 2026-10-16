@@ -36,7 +36,8 @@ describe('parseConfig', () => {
             webviewUrl: 'https://github.com/vinikjkkj/zapo',
             imageUrl: 'https://placehold.co/640x640/png',
             ctaCallNumber: undefined,
-            pix: { merchantName: 'vinikjkkj (zapo)', key: '+5511982905991', keyType: 'PHONE' }
+            pix: { merchantName: 'vinikjkkj (zapo)', key: '+5511982905991', keyType: 'PHONE' },
+            metaHostedBanner: false
         })
     })
 
@@ -60,5 +61,14 @@ describe('parseConfig', () => {
 
     it('rejects an unknown LOG_LEVEL', () => {
         expect(() => parseConfig({ LOG_LEVEL: 'loud' })).toThrow(/LOG_LEVEL/)
+    })
+
+    it('reads META_HOSTED_BANNER as a strict boolean', () => {
+        expect(parseConfig({ META_HOSTED_BANNER: 'true' }).metaHostedBanner).toBe(true)
+        expect(parseConfig({ META_HOSTED_BANNER: ' TRUE ' }).metaHostedBanner).toBe(true)
+        expect(parseConfig({ META_HOSTED_BANNER: 'false' }).metaHostedBanner).toBe(false)
+        expect(parseConfig({ META_HOSTED_BANNER: '' }).metaHostedBanner).toBe(false)
+        expect(() => parseConfig({ META_HOSTED_BANNER: 'yes' })).toThrow(/META_HOSTED_BANNER/)
+        expect(() => parseConfig({ META_HOSTED_BANNER: '1' })).toThrow(/META_HOSTED_BANNER/)
     })
 })

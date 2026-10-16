@@ -75,4 +75,5 @@ process.on('SIGINT', () => {
 })
 
 await connectAndWait(runtime)
-log(`ready: send /menu or /help (allowed numbers: ${config.allowedNumbers.length}, allowed groups: ${config.allowedGroups.length})`)
+const banner = config.metaHostedBanner ? ', META_HOSTED_BANNER on' : ''
+log(`ready: send /menu or /help (allowed numbers: ${config.allowedNumbers.length}, allowed groups: ${config.allowedGroups.length}${banner})`)

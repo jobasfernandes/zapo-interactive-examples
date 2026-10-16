@@ -10,6 +10,7 @@ Silent failures found while building these examples, as symptom and cause. Read 
 | `src/examples/menu.ts` | 6 |
 | `src/lib/catalog-history.ts` | 8, 9 |
 | `src/lib/client.ts` | 10 |
+| `src/lib/biz-privacy.ts`, `META_HOSTED_BANNER` | 12 |
 
 ## 1. A2UI form shows "not supported" on Android
 
@@ -85,3 +86,9 @@ Silent failures found while building these examples, as symptom and cause. Read 
 - **Symptom:** `query timeout ... after 10000ms` on a group send, yet the message arrived.
 - **Cause:** the server ack for a large group fanout can take longer than zapo's default 10 s.
 - **Fix:** none needed for the examples; pass a larger `ackTimeoutMs` in the send options if your app depends on the result.
+
+## 12. Meta-hosted banner shows again, or flips to "now end-to-end encrypted"
+
+- **Symptom:** with `META_HOSTED_BANNER=true`, the contact sees "This business is now using a secure service from Meta to manage this chat" more than once, or a "now end-to-end encrypted" message after it.
+- **Cause:** each of the contact's devices stores the business privacy mode on its own and adds a system message only when that mode changes and the received `privacy_mode_ts` is strictly newer than the stored one (WhatsApp Web: `WAWebHandlePrivacyModeUpdateMsgAction`, `WAWebBizCreateBizStateChangeNotificationMsgsAction`). WhatsApp Web also re-syncs the business with the server (`updateVerifiedInfo`, on a new chat and later on its own), and for an SMB account the server has no privacy mode, so the stored mode quietly goes back to end-to-end and the next stamped message shows the banner again. Observed 2026-10-16 with every message stamped: three banners in a new chat on Web, with its `verified-business-name` record back to `isSmb: true, privacyMode: null`. Which device opened the chat also changes what each device shows: WhatsApp Web copies the business mode it has stored into the `<biz>` of every message it sends to that business (`WAWebSendMsgCreateFanoutStanza`), and that copy also reaches the contact's phone, while Android does this only for API businesses. On Android, a business message without the attrs can reset the chat to end-to-end (read in the decompiled app, not observed). A copy zapo resends after a retry receipt carries no `<biz>` node at all.
+- **Fix:** stamp only the first message per chat; its retries share the stanza id and stay stamped (`installHostedPrivacyMode` keeps this per process, so a restart stamps the first reply again). Nothing reverts the contact's stored mode on purpose except a newer timestamp with another mode, and that shows its own system message.

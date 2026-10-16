@@ -10,6 +10,7 @@ import {
 } from '@zapo-js/store-sqlite'
 import { ConsoleLogger, createStore, delay, toUserJid, WaClient } from 'zapo-js'
 
+import { installHostedPrivacyMode } from './biz-privacy.js'
 import type { Config } from './config.js'
 import { installNativeFlowRewrite } from './native-flow-name.js'
 
@@ -49,7 +50,9 @@ export async function createRuntime(config: Config): Promise<Runtime> {
         }
     })
     const client = new WaClient({ store, sessionId: config.sessionId }, new ConsoleLogger(config.logLevel))
-    return { client, sqlite, connection, sessionId: config.sessionId, armNativeFlow: installNativeFlowRewrite(client) }
+    const armNativeFlow = installNativeFlowRewrite(client)
+    if (config.metaHostedBanner) installHostedPrivacyMode(client)
+    return { client, sqlite, connection, sessionId: config.sessionId, armNativeFlow }
 }
 
 /** Connects (showing the pairing QR when needed) and resolves on the first open connection. */

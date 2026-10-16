@@ -60,6 +60,17 @@ What each format does on an Android phone and on WhatsApp Web, sent from a linke
 | Native flow `quick_reply` buttons (up to 10) | works | works | |
 | Classic `listMessage` inside `documentWithCaptionMessage` | works | works | used by `/menu` |
 
+## Business privacy mode
+
+| Format | Phone | Web | Notes |
+|---|---|---|---|
+| `<biz actual_actors="2" host_storage="2" privacy_mode_ts>` on the list menu only, chat that already existed | not checked | shows "This business is now using a secure service from Meta..." once | first test |
+| Same attrs on every bot message, chat that already existed (messages cleared) | shows the banner once | no new banner | Web had stored the mode with a newer timestamp |
+| Same attrs on every bot message, chat deleted and opened again from the phone | no banner | banner three times | each Web re-sync with the server cleared the stored mode (gotcha 12) |
+| Same attrs on every bot message, chat deleted and opened again from Web | shows the banner | shows the banner | |
+| First message per chat only (current `META_HOSTED_BANNER`), chat deleted on both sides and opened from Web | shows the banner once | shows the banner once | later unstamped messages (buttons, PIX): no repeat and no "now end-to-end encrypted" |
+| Same, chat deleted again and opened from the phone in the same bot run | no banner | no banner | expected: the bot stamps each chat once per run, restart to stamp again |
+
 ## Groups
 
 | Format | Result | Notes |

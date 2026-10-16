@@ -22,6 +22,8 @@ export type Config = {
     ctaCallNumber?: string
     /** Static PIX key shown by /pix (Brazilian instant payments). */
     pix: PixConfig
+    /** Stamps every private-chat message as hosted by Meta; see src/lib/biz-privacy.ts. */
+    metaHostedBanner: boolean
 }
 
 type Env = Record<string, string | undefined>
@@ -64,6 +66,14 @@ function parsePixKeyType(raw: string | undefined): PixKeyType {
     return known
 }
 
+/** Strict on purpose: a typo like "yes" must stop the bot, not leave the flag silently off. */
+function parseFlag(name: string, raw: string | undefined): boolean {
+    const value = (raw ?? '').trim().toLowerCase()
+    if (value === '' || value === 'false') return false
+    if (value === 'true') return true
+    throw new Error(`${name} must be true or false, got "${raw}"`)
+}
+
 function nonEmpty(raw: string | undefined): string | undefined {
     const value = raw?.trim()
     return value ? value : undefined
@@ -84,7 +94,8 @@ export function parseConfig(env: Env): Config {
             merchantName: nonEmpty(env.PIX_MERCHANT_NAME) ?? 'vinikjkkj (zapo)',
             key: nonEmpty(env.PIX_KEY) ?? '+5511982905991',
             keyType: parsePixKeyType(env.PIX_KEY_TYPE)
-        }
+        },
+        metaHostedBanner: parseFlag('META_HOSTED_BANNER', env.META_HOSTED_BANNER)
     }
 }
 

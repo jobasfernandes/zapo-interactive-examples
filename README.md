@@ -37,6 +37,7 @@
 - [Commands](#commands)
 - [Send One Example Without the Bot](#send-one-example-without-the-bot)
 - [Configuration](#configuration)
+- [Meta-Hosted Banner](#meta-hosted-banner)
 - [Project Structure](#project-structure)
 - [Known Limitations](#known-limitations)
 - [Documentation](#documentation)
@@ -143,6 +144,21 @@ All variables are optional; see [.env.example](.env.example). A `.env` file in t
 | `PIX_KEY` | `+5511982905991` | PIX key shown by `/pix` and `/charge` (the default is the zapo author's, shared with his permission: tips welcome) |
 | `PIX_KEY_TYPE` | `PHONE` | `EVP`, `EMAIL`, `PHONE`, `CPF` or `CNPJ` |
 | `PIX_MERCHANT_NAME` | `vinikjkkj (zapo)` | name shown as "requested by" |
+| `META_HOSTED_BANNER` | `false` | experimental: `true` stamps the first message to each private chat as hosted by Meta; read [Meta-Hosted Banner](#meta-hosted-banner) first |
+
+### Meta-Hosted Banner
+
+Experimental and off by default. With `META_HOSTED_BANNER=true`, the first message the bot or the send CLI sends to each private chat in a run carries `<biz actual_actors="2" host_storage="2" privacy_mode_ts="1792108800">`, the privacy mode of a business hosted by Meta (Cloud API). The contact's WhatsApp then shows this system message in that chat:
+
+> This business is now using a secure service from Meta to manage this chat.
+
+Observed on WhatsApp Web and on the phone on 2026-10-16 (in Portuguese: "Esta empresa agora usa um serviço seguro da Meta para gerenciar esta conversa"). Groups, status, channels and your own chat are never stamped.
+
+Before turning it on:
+
+- **It is not true for this bot.** A linked-device session is not hosted by Meta. Use it only with your own test chats.
+- **It changes state on the contact's device.** WhatsApp Web records the account as an API business, stops treating the chat as end-to-end encrypted and swaps the encryption line in the contact info for the Meta text, until it re-syncs the business with WhatsApp's servers. Turning the flag off sends nothing to undo it; going back on purpose takes a newer `privacy_mode_ts` with `actual_actors="1" host_storage="1"`, which shows its own "now end-to-end encrypted" message.
+- **Only the first message per chat is stamped, on purpose.** The contact's WhatsApp re-syncs the business with the servers, which know this account is not hosted, and the stored mode quietly goes back to end-to-end. With every message stamped, WhatsApp Web showed the banner again after each re-sync (three times in a new chat). Restarting the bot stamps the first reply to each chat again. On Android, the unstamped messages that follow may show "now end-to-end encrypted" (not observed yet). See entry 12 in [docs/gotchas.md](docs/gotchas.md).
 
 ### Project Structure
 
@@ -152,6 +168,7 @@ All variables are optional; see [.env.example](.env.example). A `.env` file in t
 | [src/examples/carousel.ts](src/examples/carousel.ts) | `carouselMessage` cards and the `<biz>` node carousels need |
 | [src/examples/form.ts](src/examples/form.ts) | A2UI `form_message` payload |
 | [src/lib/native-flow-name.ts](src/lib/native-flow-name.ts) | why and how the `form_message` stanza is renamed so Android opens it |
+| [src/lib/biz-privacy.ts](src/lib/biz-privacy.ts) | the `<biz>` privacy attrs behind the Meta-hosted banner (`META_HOSTED_BANNER`) |
 | [src/examples/webview.ts](src/examples/webview.ts) | `cta_url` with `webview_interaction` |
 | [src/examples/product.ts](src/examples/product.ts) | `productMessage` with a re-uploaded image |
 | [src/examples/catalog.ts](src/examples/catalog.ts) | carousel with `cta_url` + `cta_catalog` |
@@ -169,6 +186,8 @@ All variables are optional; see [.env.example](.env.example). A `.env` file in t
 - A form answered on the phone shows as "Use your phone" on that person's WhatsApp Web: Android always answers with `version: 3`, which Web rejects. The bot receives both answers fine.
 - The buyer's cart only carries the item count and the total, so the order cards list your catalog products cycled up to that count: an approximation until the real order details can be fetched.
 - Catalog examples need products already shared from the app (no catalog API yet).
+- When a recipient's device asks for a message again (retry receipt), zapo rebuilds it without any `<biz>` node: that copy loses the list menu's `<list>` node and the Meta-hosted stamp.
+
 ### Documentation
 
 - [docs/delivery-matrix.md](docs/delivery-matrix.md) -- what each format does on the phone and on Web
