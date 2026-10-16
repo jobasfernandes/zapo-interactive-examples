@@ -95,6 +95,39 @@ export async function findSentProducts(store: CatalogStore, scanPerThread = 200)
     return [...newest.values()].sort((a, b) => b.timestampMs - a.timestampMs).map((entry) => entry.product)
 }
 
+export type CatalogLinkPreview = { title?: string; jpegThumbnail?: Uint8Array }
+
+/**
+ * When the app shares the catalog it sends a link preview (`wa.me/c/<phone>`) with the
+ * business name and a thumbnail. Reusing the newest one keeps the same look; the
+ * thumbnail is inline bytes, not a media reference, so reusing it is safe.
+ */
+export async function findCatalogLinkPreview(store: CatalogStore, scanPerThread = 200): Promise<CatalogLinkPreview | undefined> {
+    const messages = store.sqlite.stores.messages(store.sessionId)
+    let newest: { preview: CatalogLinkPreview; timestampMs: number } | undefined
+    for (const threadJid of await messageThreadJids(store)) {
+        for (const record of await messages.listByThread(threadJid, scanPerThread)) {
+            if (!record.fromMe || !record.messageBytes) continue
+            let decoded: proto.IMessage
+            try {
+                const outer = proto.Message.decode(record.messageBytes)
+                decoded = outer.deviceSentMessage?.message ?? outer
+            } catch {
+                continue
+            }
+            const link = decoded.extendedTextMessage
+            if (!link?.matchedText?.startsWith('https://wa.me/c/')) continue
+            const timestampMs = record.timestampMs ?? 0
+            if (newest && newest.timestampMs >= timestampMs) continue
+            newest = {
+                timestampMs,
+                preview: { title: link.title ?? undefined, jpegThumbnail: link.jpegThumbnail ?? undefined }
+            }
+        }
+    }
+    return newest?.preview
+}
+
 /**
  * Digits of the catalog owner's phone. `cta_catalog` and `wa.me/p` links need the
  * phone number: with the LID the client builds a link that 404s.

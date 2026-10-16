@@ -1,5 +1,6 @@
 import { buttonsExample } from './buttons.js'
 import { carouselExample } from './carousel.js'
+import { catalogLinkExample, catalogMessageExample } from './catalog-solo.js'
 import { catalogExample } from './catalog.js'
 import { formExample } from './form.js'
 import { productExample } from './product.js'
@@ -12,7 +13,9 @@ export const EXAMPLES: readonly Example[] = [
     formExample,
     webviewExample,
     productExample,
-    catalogExample
+    catalogExample,
+    catalogLinkExample,
+    catalogMessageExample
 ]
 
 export function findExample(command: string): Example | undefined {
