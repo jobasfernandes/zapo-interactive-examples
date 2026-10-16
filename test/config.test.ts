@@ -35,8 +35,14 @@ describe('parseConfig', () => {
             ctaUrl: 'https://github.com/vinikjkkj/zapo',
             webviewUrl: 'https://github.com/vinikjkkj/zapo',
             imageUrl: 'https://placehold.co/640x640/png',
-            ctaCallNumber: undefined
+            ctaCallNumber: undefined,
+            pix: { merchantName: 'vinikjkkj (zapo)', key: '+5511982905991', keyType: 'PHONE' }
         })
+    })
+
+    it('rejects an unknown PIX_KEY_TYPE', () => {
+        expect(() => parseConfig({ PIX_KEY_TYPE: 'IBAN' })).toThrow(/PIX_KEY_TYPE/)
+        expect(parseConfig({ PIX_KEY: '+5511999999999', PIX_KEY_TYPE: 'phone' }).pix.keyType).toBe('PHONE')
     })
 
     it('normalizes messy number lists to digits', () => {

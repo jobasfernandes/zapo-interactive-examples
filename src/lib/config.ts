@@ -4,6 +4,12 @@ const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error'] as const
 
 export type LogLevel = (typeof LOG_LEVELS)[number]
 
+const PIX_KEY_TYPES = ['EVP', 'EMAIL', 'PHONE', 'CPF', 'CNPJ'] as const
+
+export type PixKeyType = (typeof PIX_KEY_TYPES)[number]
+
+export type PixConfig = { merchantName: string; key: string; keyType: PixKeyType }
+
 export type Config = {
     authPath: string
     sessionId: string
@@ -14,6 +20,8 @@ export type Config = {
     webviewUrl: string
     imageUrl: string
     ctaCallNumber?: string
+    /** Static PIX key shown by /pix (Brazilian instant payments). */
+    pix: PixConfig
 }
 
 type Env = Record<string, string | undefined>
@@ -47,6 +55,15 @@ function parseLogLevel(raw: string | undefined): LogLevel {
     return known
 }
 
+function parsePixKeyType(raw: string | undefined): PixKeyType {
+    const value = (raw ?? 'PHONE').trim().toUpperCase()
+    const known = PIX_KEY_TYPES.find((candidate) => candidate === value)
+    if (!known) {
+        throw new Error(`PIX_KEY_TYPE must be one of ${PIX_KEY_TYPES.join(', ')}, got "${raw}"`)
+    }
+    return known
+}
+
 function nonEmpty(raw: string | undefined): string | undefined {
     const value = raw?.trim()
     return value ? value : undefined
@@ -62,7 +79,12 @@ export function parseConfig(env: Env): Config {
         ctaUrl: nonEmpty(env.CTA_URL) ?? DEFAULT_URL,
         webviewUrl: nonEmpty(env.WEBVIEW_URL) ?? DEFAULT_URL,
         imageUrl: nonEmpty(env.IMAGE_URL) ?? 'https://placehold.co/640x640/png',
-        ctaCallNumber: nonEmpty(env.CTA_CALL_NUMBER)
+        ctaCallNumber: nonEmpty(env.CTA_CALL_NUMBER),
+        pix: {
+            merchantName: nonEmpty(env.PIX_MERCHANT_NAME) ?? 'vinikjkkj (zapo)',
+            key: nonEmpty(env.PIX_KEY) ?? '+5511982905991',
+            keyType: parsePixKeyType(env.PIX_KEY_TYPE)
+        }
     }
 }
 

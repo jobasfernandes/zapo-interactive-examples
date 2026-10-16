@@ -17,8 +17,8 @@ export function buildMenu(examples: readonly Example[]): SendContent {
     const row = (example: Example) => ({ rowId: `/${example.command}`, title: example.title, description: example.description })
     const listed = examples.slice(0, MAX_ROWS)
     const sections = [
-        { title: 'Any account', rows: listed.filter((example) => !example.requiresCatalog).map(row) },
-        { title: 'Business account with catalog', rows: listed.filter((example) => example.requiresCatalog).map(row) }
+        { title: 'Messages', rows: listed.filter((example) => !example.requiresCatalog).map(row) },
+        { title: 'Catalog (Business)', rows: listed.filter((example) => example.requiresCatalog).map(row) }
     ].filter((section) => section.rows.length > 0)
     return {
         documentWithCaptionMessage: {
