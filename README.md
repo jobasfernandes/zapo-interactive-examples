@@ -23,7 +23,6 @@
   <a href="https://www.typescriptlang.org/"><picture><source media="(prefers-color-scheme: dark)" srcset="https://www.shieldcn.dev/badge/Language-TypeScript-3178C6.svg?logo=typescript&amp;variant=branded&amp;size=sm&amp;mode=dark"><img alt="Language · TypeScript" src="https://www.shieldcn.dev/badge/Language-TypeScript-3178C6.svg?logo=typescript&amp;variant=branded&amp;size=sm&amp;mode=light"></picture></a>
   <a href="https://nodejs.org/"><picture><source media="(prefers-color-scheme: dark)" srcset="https://www.shieldcn.dev/badge/Runtime-Node.js_20.12+-5FA04E.svg?logo=nodedotjs&amp;variant=branded&amp;size=sm&amp;mode=dark"><img alt="Runtime · Node.js 20.12+" src="https://www.shieldcn.dev/badge/Runtime-Node.js_20.12+-5FA04E.svg?logo=nodedotjs&amp;variant=branded&amp;size=sm&amp;mode=light"></picture></a>
   <a href="https://github.com/vinikjkkj/zapo"><picture><source media="(prefers-color-scheme: dark)" srcset="https://www.shieldcn.dev/badge/WhatsApp-zapo--js_1.10-25D366.svg?logo=whatsapp&amp;variant=branded&amp;size=sm&amp;mode=dark"><img alt="WhatsApp · zapo-js 1.10" src="https://www.shieldcn.dev/badge/WhatsApp-zapo--js_1.10-25D366.svg?logo=whatsapp&amp;variant=branded&amp;size=sm&amp;mode=light"></picture></a>
-  <a href="https://docs.npmjs.com/cli"><picture><source media="(prefers-color-scheme: dark)" srcset="https://www.shieldcn.dev/badge/Package_mgr-npm-CB3837.svg?logo=npm&amp;variant=branded&amp;size=sm&amp;mode=dark"><img alt="Package mgr · npm" src="https://www.shieldcn.dev/badge/Package_mgr-npm-CB3837.svg?logo=npm&amp;variant=branded&amp;size=sm&amp;mode=light"></picture></a>
   <a href="https://vitest.dev/"><picture><source media="(prefers-color-scheme: dark)" srcset="https://www.shieldcn.dev/badge/Tests-Vitest-6E9F18.svg?logo=vitest&amp;variant=branded&amp;size=sm&amp;mode=dark"><img alt="Tests · Vitest" src="https://www.shieldcn.dev/badge/Tests-Vitest-6E9F18.svg?logo=vitest&amp;variant=branded&amp;size=sm&amp;mode=light"></picture></a>
 </p>
 
@@ -170,8 +169,6 @@ All variables are optional; see [.env.example](.env.example). A `.env` file in t
 - A form answered on the phone shows as "Use your phone" on that person's WhatsApp Web: Android always answers with `version: 3`, which Web rejects. The bot receives both answers fine.
 - The buyer's cart only carries the item count and the total, so the order cards list your catalog products cycled up to that count: an approximation until the real order details can be fetched.
 - Catalog examples need products already shared from the app (no catalog API yet).
-- On WhatsApp Web a PIX charge (`/charge`) renders and its "copy PIX code" button works, but opening the payment details panel keeps loading; on the phone the whole flow works, including the native payment.
-
 ### Documentation
 
 - [docs/delivery-matrix.md](docs/delivery-matrix.md) -- what each format does on the phone and on Web

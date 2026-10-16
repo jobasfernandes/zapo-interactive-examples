@@ -68,11 +68,11 @@ Silent failures found while building these examples, as symptom and cause. Read 
 - **Cause:** int64 fields of a decoded proto are `Long` objects; deep-copying them into plain objects breaks zapo's media download.
 - **Fix:** keep the decoded payload as is and only strip `$unknowns` from what you are about to send.
 
-## 9b. PIX charge details never load on WhatsApp Web
+## 9b. Charge details keep loading on WhatsApp Web
 
-- **Symptom:** a `review_and_pay` charge with a `pix_static_code` payment setting renders on Web, but clicking it opens "payment details" and the panel keeps loading. The phone works, including the native payment flow.
-- **Cause:** with a PIX setting Web opens its Brazil payment details panel instead of the charge details one; the same card without PIX (as the Business app sends when no PIX key is registered) opens fine. The PIX panel seems to need payment state that only charges created by the app have; not confirmed against an app-made PIX charge.
-- **Workaround:** none known; the card itself and its "copy PIX code" button work on Web. A `payment_info` card never shows an amount, so use the charge when the amount matters.
+- **Symptom:** a `review_and_pay` charge renders on Web, but clicking it opens a details panel that keeps loading forever. The phone works, including the native payment flow.
+- **Cause:** Web looks every order line up in the seller's catalog (`useWAWebOrderDetailItems` -> `CatalogCollection.findProduct` inside a `Promise.all`) unless the line is a custom item. A line that is not a catalog product (like "Charge") makes the lookup fail, and the panel never leaves its loading state.
+- **Fix:** send `isCustomItem: true` (and `isQuantitySet: true`) on lines that are not catalog products; real products keep `retailer_id` / `product_id`. Also note that `payment_info` never shows an amount: use a charge when the amount matters.
 
 ## 10. Bot and CLI keep disconnecting each other
 

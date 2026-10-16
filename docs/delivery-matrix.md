@@ -48,7 +48,8 @@ What each format does on an Android phone and on WhatsApp Web, sent from a linke
 | Format | Phone | Web | Notes |
 |---|---|---|---|
 | `payment_info` with `pix_static_code` | works, "copy PIX key" | works, "copy PIX key" | never shows an amount, even when `total_amount` is set (`/pix`) |
-| `review_and_pay` with `pix_static_code` | works, opens the native payment flow | card and "copy PIX code" work; the "payment details" panel keeps loading | `/charge` |
+| `review_and_pay` with `pix_static_code`, line without `isCustomItem` | works, opens the native payment flow | card and "copy PIX code" work; the details panel keeps loading | see gotcha 9b |
+| `review_and_pay` with `pix_static_code`, line with `isCustomItem: true` | works, opens the native payment flow | works, opens "charge details" | `/charge` |
 | `review_and_pay` without a PIX setting (charge made in the Business app) | works | works, opens "charge details" | for comparison |
 
 ## Bot menu
