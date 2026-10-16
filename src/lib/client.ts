@@ -2,7 +2,12 @@ import { mkdir } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 
-import { createSqliteStore, type WaSqliteStoreResult } from '@zapo-js/store-sqlite'
+import {
+    createSqliteStore,
+    openSqliteConnection,
+    type WaSqliteConnection,
+    type WaSqliteStoreResult
+} from '@zapo-js/store-sqlite'
 import { ConsoleLogger, createStore, delay, toUserJid, WaClient } from 'zapo-js'
 
 import type { Config } from './config.js'
@@ -16,6 +21,8 @@ const MAX_RECONNECT_ATTEMPTS = 10
 export type Runtime = {
     client: WaClient
     sqlite: WaSqliteStoreResult
+    /** Same connection the stores use; for read-only queries the store API does not offer. */
+    connection: WaSqliteConnection
     sessionId: string
     armNativeFlow: (messageId: string, attrs: Record<string, string>) => void
 }
@@ -23,7 +30,8 @@ export type Runtime = {
 export async function createRuntime(config: Config): Promise<Runtime> {
     const authPath = resolve(process.cwd(), config.authPath)
     await mkdir(dirname(authPath), { recursive: true })
-    const sqlite = createSqliteStore({ path: authPath, driver: 'auto' })
+    const connection = await openSqliteConnection({ path: authPath, driver: 'auto', sessionId: config.sessionId })
+    const sqlite = createSqliteStore({ connection })
     const store = createStore({
         backends: { sqlite },
         providers: {
@@ -41,7 +49,7 @@ export async function createRuntime(config: Config): Promise<Runtime> {
         }
     })
     const client = new WaClient({ store, sessionId: config.sessionId }, new ConsoleLogger(config.logLevel))
-    return { client, sqlite, sessionId: config.sessionId, armNativeFlow: installNativeFlowRewrite(client) }
+    return { client, sqlite, connection, sessionId: config.sessionId, armNativeFlow: installNativeFlowRewrite(client) }
 }
 
 /** Connects (showing the pairing QR when needed) and resolves on the first open connection. */
@@ -85,6 +93,8 @@ export function connectAndWait(runtime: Runtime): Promise<void> {
                 return
             }
             console.log(`[connection] closed: ${event.reason} (code=${event.code})`)
+            // Our own disconnect() (CLI exit, shutdown) must not bring the socket back.
+            if (event.reason === 'client_disconnected') return
             void reconnect()
         })
         client.connect().catch(rejectOpen)
