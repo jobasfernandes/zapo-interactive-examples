@@ -1,6 +1,28 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
-import { parseConfig, parseGroupList, parseNumberList } from '../src/lib/config.js'
+import { loadConfig, parseConfig, parseGroupList, parseNumberList } from '../src/lib/config.js'
+
+describe('loadConfig', () => {
+    it('reads a .env file when it exists', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'zapo-examples-'))
+        const file = join(dir, '.env')
+        writeFileSync(file, 'ALLOWED_GROUPS=120363000000000000@g.us\n')
+        try {
+            expect(loadConfig(file).allowedGroups).toEqual(['120363000000000000@g.us'])
+        } finally {
+            delete process.env.ALLOWED_GROUPS
+            rmSync(dir, { recursive: true, force: true })
+        }
+    })
+
+    it('works without a .env file', () => {
+        expect(loadConfig(join(tmpdir(), 'missing-zapo-examples.env')).sessionId).toBeTypeOf('string')
+    })
+})
 
 describe('parseConfig', () => {
     it('applies the documented defaults', () => {

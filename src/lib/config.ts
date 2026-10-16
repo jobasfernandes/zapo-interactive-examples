@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+
 const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error'] as const
 
 export type LogLevel = (typeof LOG_LEVELS)[number]
@@ -64,6 +66,8 @@ export function parseConfig(env: Env): Config {
     }
 }
 
-export function loadConfig(): Config {
+/** Reads `.env` (when present) into process.env, then parses it. Real env vars win. */
+export function loadConfig(envFile = '.env'): Config {
+    if (existsSync(envFile)) process.loadEnvFile(envFile)
     return parseConfig(process.env)
 }

@@ -6,7 +6,7 @@
     "license": "Unlicense",
     "type": "module",
     "engines": {
-        "node": ">=20.9"
+        "node": ">=20.12"
     },
     "scripts": {
         "start": "tsx src/bot/main.ts",

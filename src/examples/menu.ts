@@ -1,25 +1,36 @@
+import { proto } from 'zapo-js'
+
 import type { Example, SendContent } from './types.js'
 
-/** WhatsApp Web shows up to 10 native flow buttons when the first one is a quick reply. */
-const MAX_MENU_BUTTONS = 10
+/** WhatsApp caps a list at 10 rows across all sections. */
+const MAX_ROWS = 10
 
 /**
- * Quick reply buttons, one per example; the button id is the command, so a tap runs
- * exactly like typing it (`nativeFlowResponseMessage.paramsJson = {"id": "/carousel"}`).
- * A `single_select` list would look tidier, but WhatsApp Web does not render it
- * ("Use your phone") and the answer shows as "update WhatsApp" on some phones.
+ * Classic single-select `listMessage`, wrapped in `documentWithCaptionMessage`
+ * (FutureProofMessage): WhatsApp Web only renders a list through this wrapper. A bare
+ * `listMessage` or a native flow `single_select` opens on the phone but not on Web.
+ * zapo attaches the `<biz><list>` companion node (and the group stanza shape) itself.
+ * Row ids are the commands, so a pick (`listResponseMessage.singleSelectReply.selectedRowId`)
+ * runs exactly like typing it.
  */
 export function buildMenu(examples: readonly Example[]): SendContent {
+    const row = (example: Example) => ({ rowId: `/${example.command}`, title: example.title, description: example.description })
+    const listed = examples.slice(0, MAX_ROWS)
+    const sections = [
+        { title: 'Any account', rows: listed.filter((example) => !example.requiresCatalog).map(row) },
+        { title: 'Business account with catalog', rows: listed.filter((example) => example.requiresCatalog).map(row) }
+    ].filter((section) => section.rows.length > 0)
     return {
-        interactiveMessage: {
-            body: { text: 'Pick an example and it will be sent to this chat 👇' },
-            footer: { text: 'zapo-interactive-examples · /help lists every command' },
-            nativeFlowMessage: {
-                messageVersion: 1,
-                buttons: examples.slice(0, MAX_MENU_BUTTONS).map((example) => ({
-                    name: 'quick_reply',
-                    buttonParamsJson: JSON.stringify({ display_text: example.title, id: `/${example.command}` })
-                }))
+        documentWithCaptionMessage: {
+            message: {
+                listMessage: {
+                    title: 'zapo-interactive-examples',
+                    description: 'Pick an example and it will be sent to this chat 👇',
+                    buttonText: 'Examples',
+                    footerText: '/help lists every command',
+                    listType: proto.Message.ListMessage.ListType.SINGLE_SELECT,
+                    sections
+                }
             }
         }
     } as unknown as SendContent

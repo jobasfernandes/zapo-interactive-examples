@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { proto, WaIncomingMessageEvent } from 'zapo-js'
+import { proto, type WaIncomingMessageEvent } from 'zapo-js'
 
 import { decide, isStale } from '../src/bot/handle.js'
 import { EXAMPLES } from '../src/examples/index.js'
@@ -91,14 +91,24 @@ describe('isStale', () => {
 })
 
 describe('buildMenu', () => {
-    it('uses quick reply buttons (single_select lists do not load on WhatsApp Web) with the command as id', () => {
+    it('is a classic single-select listMessage wrapped in documentWithCaptionMessage, rows ids = commands', () => {
         const menu = buildMenu(EXAMPLES) as {
-            interactiveMessage: { nativeFlowMessage: { buttons: { name: string; buttonParamsJson: string }[] } }
+            documentWithCaptionMessage: {
+                message: {
+                    listMessage: {
+                        listType: number
+                        buttonText: string
+                        sections: { title: string; rows: { rowId: string; title: string; description: string }[] }[]
+                    }
+                }
+            }
         }
-        const { buttons } = menu.interactiveMessage.nativeFlowMessage
-        expect(buttons.length).toBeLessThanOrEqual(10)
-        expect(buttons.every((button) => button.name === 'quick_reply')).toBe(true)
-        expect(JSON.parse(buttons[0].buttonParamsJson)).toEqual({ display_text: EXAMPLES[0].title, id: `/${EXAMPLES[0].command}` })
+        const list = menu.documentWithCaptionMessage.message.listMessage
+        expect(list.listType).toBe(proto.Message.ListMessage.ListType.SINGLE_SELECT)
+        const rows = list.sections.flatMap((section) => section.rows)
+        expect(rows.length).toBeLessThanOrEqual(10)
+        expect(rows.map((row) => row.rowId)).toEqual(EXAMPLES.map((example) => `/${example.command}`))
+        expect(rows[0]).toEqual({ rowId: `/${EXAMPLES[0].command}`, title: EXAMPLES[0].title, description: EXAMPLES[0].description })
     })
 })
 
