@@ -44,6 +44,11 @@ describe('PIX charge (/charge)', () => {
         expect(params.order.items[0]).toMatchObject({ amount: { value: 1050, offset: 100 }, quantity: 1 })
     })
 
+    it('marks the charge line as a custom item so WhatsApp Web does not look it up in the catalog', () => {
+        const { params } = button(buildPixCharge(pix, 1050))
+        expect(params.order.items[0]).toMatchObject({ isCustomItem: true, isQuantitySet: true })
+    })
+
     it('carries the fields the WhatsApp Business app sends with a charge', () => {
         const { params } = button(buildPixCharge(pix, 1))
         expect(params.native_payment_methods).toEqual([])

@@ -67,7 +67,9 @@ export function buildPixCharge(pix: PixConfig, amountCents: number): SendContent
             status: 'payment_requested',
             subtotal: amount,
             order_type: 'ORDER',
-            items: [{ name: 'Charge', amount, quantity: 1 }]
+            // Not a catalog product: without isCustomItem WhatsApp Web looks the line up in the
+            // catalog, the lookup fails and its "payment details" panel keeps loading forever.
+            items: [{ name: 'Charge', amount, quantity: 1, isCustomItem: true, isQuantitySet: true }]
         },
         native_payment_methods: [],
         share_payment_status: false,
