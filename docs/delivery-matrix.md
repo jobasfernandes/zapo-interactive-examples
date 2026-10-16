@@ -68,8 +68,10 @@ What each format does on an Android phone and on WhatsApp Web, sent from a linke
 | Same attrs on every bot message, chat that already existed (messages cleared) | shows the banner once | no new banner | Web had stored the mode with a newer timestamp |
 | Same attrs on every bot message, chat deleted and opened again from the phone | no banner | banner three times | each Web re-sync with the server cleared the stored mode (gotcha 12) |
 | Same attrs on every bot message, chat deleted and opened again from Web | shows the banner | shows the banner | |
-| First message per chat only (current `META_HOSTED_BANNER`), chat deleted on both sides and opened from Web | shows the banner once | shows the banner once | later unstamped messages (buttons, PIX): no repeat and no "now end-to-end encrypted" |
-| Same, chat deleted again and opened from the phone in the same bot run | no banner | no banner | expected: the bot stamps each chat once per run, restart to stamp again |
+| Meta attrs on the first message per chat only, chat deleted on both sides and opened from Web | shows the banner once | shows the banner once | later unstamped messages (buttons, PIX): no repeat |
+| Same, after a bot restart, chat opened from Web while the phone still had the Meta mode | no banner | shows the banner once | the phone keeps the mode after the chat is deleted |
+| 👋 stamped end-to-end, then the first message stamped as hosted by Meta (current `META_HOSTED_BANNER`), chat opened from the phone that still had the Meta mode | shows the banner once, with "end-to-end encrypted" notices around it (three in total) | not recorded | the last notice came after the first unstamped reply, then no more |
+| Same, after a bot restart, chat opened from Web | shows the banner once, no repeats | shows the banner once, no repeats | several commands exchanged after it |
 
 ## Groups
 

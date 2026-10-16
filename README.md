@@ -144,11 +144,11 @@ All variables are optional; see [.env.example](.env.example). A `.env` file in t
 | `PIX_KEY` | `+5511982905991` | PIX key shown by `/pix` and `/charge` (the default is the zapo author's, shared with his permission: tips welcome) |
 | `PIX_KEY_TYPE` | `PHONE` | `EVP`, `EMAIL`, `PHONE`, `CPF` or `CNPJ` |
 | `PIX_MERCHANT_NAME` | `vinikjkkj (zapo)` | name shown as "requested by" |
-| `META_HOSTED_BANNER` | `false` | experimental: `true` stamps the first message to each private chat as hosted by Meta; read [Meta-Hosted Banner](#meta-hosted-banner) first |
+| `META_HOSTED_BANNER` | `false` | experimental: `true` marks the first message to each private chat as hosted by Meta, with a 👋 before it; read [Meta-Hosted Banner](#meta-hosted-banner) first |
 
 ### Meta-Hosted Banner
 
-Experimental and off by default. With `META_HOSTED_BANNER=true`, the first message the bot or the send CLI sends to each private chat in a run carries `<biz actual_actors="2" host_storage="2" privacy_mode_ts="1792108800">`, the privacy mode of a business hosted by Meta (Cloud API). The contact's WhatsApp then shows this system message in that chat:
+Experimental and off by default. With `META_HOSTED_BANNER=true`, the first time the bot or the send CLI writes to a private chat in a run, it sends a 👋 stamped end-to-end (`<biz actual_actors="1" host_storage="1" privacy_mode_ts="...">`) and then the real message stamped with the privacy mode of a business hosted by Meta (`actual_actors="2" host_storage="2"`, one second newer). The contact's WhatsApp then shows this system message in that chat:
 
 > This business is now using a secure service from Meta to manage this chat.
 
@@ -158,7 +158,8 @@ Before turning it on:
 
 - **It is not true for this bot.** A linked-device session is not hosted by Meta. Use it only with your own test chats.
 - **It changes state on the contact's device.** WhatsApp Web records the account as an API business, stops treating the chat as end-to-end encrypted and swaps the encryption line in the contact info for the Meta text, until it re-syncs the business with WhatsApp's servers. Turning the flag off sends nothing to undo it; going back on purpose takes a newer `privacy_mode_ts` with `actual_actors="1" host_storage="1"`, which shows its own "now end-to-end encrypted" message.
-- **Only the first message per chat is stamped, on purpose.** The contact's WhatsApp re-syncs the business with the servers, which know this account is not hosted, and the stored mode quietly goes back to end-to-end. With every message stamped, WhatsApp Web showed the banner again after each re-sync (three times in a new chat). Restarting the bot stamps the first reply to each chat again. On Android, the unstamped messages that follow may show "now end-to-end encrypted" (not observed yet). See entry 12 in [docs/gotchas.md](docs/gotchas.md).
+- **Why the 👋 first.** Each of the contact's devices shows the banner only when the mode it stored for the business changes. A phone keeps the Meta mode even after the chat is deleted, so the Meta stamp alone showed nothing there the second time; switching to end-to-end first turns it into a change on every device. A device that still had the Meta mode shows "now end-to-end encrypted" right before the banner.
+- **Only the first message per chat, per run.** Later messages go out untouched: with every message stamped, WhatsApp Web showed the banner again each time it re-synced the business with the servers, which know this account is not hosted (three times in a new chat). Restart the bot to run the switch again. See entry 12 in [docs/gotchas.md](docs/gotchas.md).
 
 ### Project Structure
 
