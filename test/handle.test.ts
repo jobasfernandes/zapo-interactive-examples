@@ -3,7 +3,7 @@ import type { proto, WaIncomingMessageEvent } from 'zapo-js'
 
 import { decide, isStale } from '../src/bot/handle.js'
 import { EXAMPLES } from '../src/examples/index.js'
-import { HELP_TEXT } from '../src/examples/menu.js'
+import { buildMenu, HELP_TEXT } from '../src/examples/menu.js'
 import type { ChatContext } from '../src/lib/access.js'
 import { parseConfig } from '../src/lib/config.js'
 
@@ -87,6 +87,18 @@ describe('isStale', () => {
     it('flags messages older than the bot start (offline backlog)', () => {
         expect(isStale(event(text('/form'), 'OLD', 1_000), 2_000)).toBe(true)
         expect(isStale(event(text('/form'), 'NEW', 2_001), 2_000)).toBe(false)
+    })
+})
+
+describe('buildMenu', () => {
+    it('uses quick reply buttons (single_select lists do not load on WhatsApp Web) with the command as id', () => {
+        const menu = buildMenu(EXAMPLES) as {
+            interactiveMessage: { nativeFlowMessage: { buttons: { name: string; buttonParamsJson: string }[] } }
+        }
+        const { buttons } = menu.interactiveMessage.nativeFlowMessage
+        expect(buttons.length).toBeLessThanOrEqual(10)
+        expect(buttons.every((button) => button.name === 'quick_reply')).toBe(true)
+        expect(JSON.parse(buttons[0].buttonParamsJson)).toEqual({ display_text: EXAMPLES[0].title, id: `/${EXAMPLES[0].command}` })
     })
 })
 

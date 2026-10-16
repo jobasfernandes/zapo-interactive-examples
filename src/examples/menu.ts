@@ -1,31 +1,25 @@
 import type { Example, SendContent } from './types.js'
 
+/** WhatsApp Web shows up to 10 native flow buttons when the first one is a quick reply. */
+const MAX_MENU_BUTTONS = 10
+
 /**
- * Native flow `single_select`: a button that opens a list. The picked row comes back as
- * `nativeFlowResponseMessage.paramsJson = {"id": "<row id>"}`; row ids are the commands
- * themselves, so a pick runs exactly like typing it.
+ * Quick reply buttons, one per example; the button id is the command, so a tap runs
+ * exactly like typing it (`nativeFlowResponseMessage.paramsJson = {"id": "/carousel"}`).
+ * A `single_select` list would look tidier, but WhatsApp Web does not render it
+ * ("Use your phone") and the answer shows as "update WhatsApp" on some phones.
  */
 export function buildMenu(examples: readonly Example[]): SendContent {
-    const rows = examples.map((example) => ({
-        id: `/${example.command}`,
-        title: example.title,
-        description: example.description
-    }))
     return {
         interactiveMessage: {
             body: { text: 'Pick an example and it will be sent to this chat 👇' },
-            footer: { text: 'zapo-interactive-examples' },
+            footer: { text: 'zapo-interactive-examples · /help lists every command' },
             nativeFlowMessage: {
                 messageVersion: 1,
-                buttons: [
-                    {
-                        name: 'single_select',
-                        buttonParamsJson: JSON.stringify({
-                            title: 'Examples',
-                            sections: [{ title: 'Interactive messages', rows }]
-                        })
-                    }
-                ]
+                buttons: examples.slice(0, MAX_MENU_BUTTONS).map((example) => ({
+                    name: 'quick_reply',
+                    buttonParamsJson: JSON.stringify({ display_text: example.title, id: `/${example.command}` })
+                }))
             }
         }
     } as unknown as SendContent
