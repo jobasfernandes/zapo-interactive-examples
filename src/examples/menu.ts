@@ -36,11 +36,22 @@ export function buildMenu(examples: readonly Example[]): SendContent {
     } as unknown as SendContent
 }
 
+const POLL_QUESTION = 'Pick an example to run'
+
+/**
+ * The same examples as a single-choice poll. A vote comes back as the option name, so the
+ * option names are the example titles and the bot maps a vote to its example by title.
+ */
+export function buildPollMenu(examples: readonly Example[]): SendContent {
+    return { type: 'poll', name: POLL_QUESTION, options: examples.map((example) => example.title), selectableCount: 1 }
+}
+
 /** Every line starts with a bullet: the bot's own echo of this text must not look like a command. */
 export function HELP_TEXT(examples: readonly Example[]): string {
     return [
         'zapo-interactive-examples commands:',
         '• /menu: interactive list of the examples',
+        '• /poll: the examples as a poll; every vote runs the example it picks and the poll stays in the chat',
         ...examples.map((example) => `• /${example.command}: ${example.description}`),
         '• /group-status <group-jid>: posts the repo banner as a status of that group (only groups in ALLOWED_GROUPS)',
         "• /groups: this account's groups and their ids, for ALLOWED_GROUPS (only in your own chat)",
