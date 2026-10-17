@@ -61,6 +61,7 @@ Every example here was checked on an Android phone and on WhatsApp Web. What ren
 - **Catalog** -- product cards, product carousels with native catalog buttons, the `wa.me/c` catalog share and the interactive `catalog_message`
 - **Orders** -- the seller's `review_and_pay` cards, sent as a reaction to a buyer's cart
 - **PIX** -- the static PIX key card and a PIX charge that opens the native payment flow on the phone
+- **Poll menu** -- the examples as a poll: each vote is decrypted and runs the example it picks, and the poll stays in the chat as a menu
 - **Group status** -- the repo banner posted as a status of a group (`groupStatusMessageV2`), from the bot or the CLI
 - **Test bot** -- `/commands` and a list menu, access limited to allowed numbers and groups
 - **Send CLI** -- one example to one chat, no bot needed
@@ -98,6 +99,8 @@ Commands always start with `/`; plain text never triggers the bot.
 
 Everyone else is ignored; their commands are logged to `logs/bot.log` as `DENIED` so you can check the allowlists. Write numbers the way WhatsApp stores them (in Brazil that is often without the extra ninth digit). Type `/groups` in your own chat to get the id of a group for `ALLOWED_GROUPS`.
 
+A vote on a `/poll` follows the same rules as a command: the voter must be allowed, and a vote from anyone else is logged as `DENIED` and does nothing.
+
 `/group-status` follows the same rules for who may ask, and it only posts to groups in `ALLOWED_GROUPS`, whoever asks.
 
 ### Commands
@@ -105,6 +108,7 @@ Everyone else is ignored; their commands are logged to `logs/bot.log` as `DENIED
 | Command | Sends | Needs a catalog |
 |---|---|---|
 | `/menu` | a list with every example; picking a row runs it | no |
+| `/poll` | a poll with every example; every vote runs the example it picks, and the poll stays in the chat | no |
 | `/help` | the command list as text | no |
 | `/buttons` | legacy buttons, quick reply buttons, CTA buttons (link, call, copy) | no |
 | `/carousel` | generic carousel: image cards with a quick reply and a link | no |
@@ -119,7 +123,7 @@ Everyone else is ignored; their commands are logged to `logs/bot.log` as `DENIED
 | `/group-status <group-jid>` | the portrait banner posted as a status of that group, which must be in `ALLOWED_GROUPS` (see [Group Status](#group-status)) | no |
 | `/groups` | the account's groups and their ids (only in your own chat) | no |
 
-The bot also **reacts to carts**: when an allowed contact sends a cart from your catalog, it answers with the two order cards a seller sends (accept and decline), quoting the cart. Button and form answers are written to `logs/bot.log`.
+The bot also **reacts to carts**: when an allowed contact sends a cart from your catalog, it answers with the two order cards a seller sends (accept and decline), quoting the cart. Button and form answers are echoed in the chat (quoting the answer) and written to `logs/bot.log`.
 
 ### Send One Example Without the Bot
 
@@ -206,7 +210,7 @@ Where it does not show:
 | [src/examples/pix.ts](src/examples/pix.ts) | `payment_info` PIX key card and `review_and_pay` PIX charge |
 | [src/examples/group-status.ts](src/examples/group-status.ts) | `groupStatusMessageV2` with the `<meta is_group_status>` node (`/group-status`) |
 | [assets/](assets/) | the banner and thumbnail `/group-status` posts |
-| [src/examples/menu.ts](src/examples/menu.ts) | classic `listMessage` that also renders on WhatsApp Web |
+| [src/examples/menu.ts](src/examples/menu.ts) | classic `listMessage` that also renders on WhatsApp Web, and the same menu as a poll (`/poll`) |
 | [src/bot/](src/bot/) | the bot: access rules, command routing, cart reaction |
 | [src/cli/send.ts](src/cli/send.ts) | the send CLI |
 | [test/](test/) | unit tests for the pure parts (config, access, commands, payload builders) |
@@ -218,6 +222,7 @@ Where it does not show:
 - The buyer's cart only carries the item count and the total, so the order cards list your catalog products cycled up to that count: an approximation until the real order details can be fetched.
 - Catalog examples need products already shared from the app (no catalog API yet).
 - When a recipient's device asks for a message again (retry receipt), zapo rebuilds it without any `<biz>` node: that copy loses the list menu's `<list>` node and the Meta-hosted stamp. It also loses the group status `<meta>` node, though it keeps the wrapper, which is what receivers read (read in WhatsApp Web's code, not observed).
+- The bot recognizes a `/poll` only while it keeps running (it remembers in memory the ids of what it sent): after a restart, an old poll stays in the chat and its votes do nothing.
 
 ### Documentation
 

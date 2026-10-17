@@ -60,6 +60,33 @@ What each format does on an Android phone and on WhatsApp Web, sent from a linke
 | Native flow `quick_reply` buttons (up to 10) | works | works | |
 | Classic `listMessage` inside `documentWithCaptionMessage` | works | works | used by `/menu` |
 
+## Poll
+
+Sent by the bot (a WhatsApp Business account) to a personal account and to an allowed group. Results observed on 2026-10-17 by the owner on the phone and on Web, with the bot log showing each vote.
+
+| Format | Phone | Web | Notes |
+|---|---|---|---|
+| `pollCreationMessageV3`, single choice, one option per example (`/poll`) | works | works | the vote arrives as a `message_addon` with `selectedOptionNames: null`, see gotcha 14 |
+| A changed vote runs the newly picked example | works | works | every vote runs its example; removing the vote does nothing |
+| Poll left in the chat after the vote | works | works | no "message deleted" notice; it keeps working as a menu until the bot restarts |
+| Same, in an allowed group | works | works | the example is sent to the group |
+| Poll revoked by the bot (first version of the command) | shows "message deleted" | not recorded | why the revoke was dropped |
+| Button and form answers echoed by the bot | works | works | `• Selected <id>` or `• Tapped "<text>" (<id>)`, quoting the tap; the owner's own taps outside the self-chat are only logged |
+
+## Disappearing after reading
+
+Messages sent with `contextInfo.afterReadDuration` (plus `disappearingMode` and `ephemeralSettingTimestamp`) vanish after being read, with no "message deleted" notice. It is an experiment, not a feature of the examples: it switches the recipient's chat to disappearing messages, see gotcha 16. Observed on 2026-10-17 from the Business account to a personal account, with `afterReadDuration` 20.
+
+| Format | Phone | Web | Notes |
+|---|---|---|---|
+| Text | vanishes | vanishes | |
+| List menu, buttons (legacy, quick reply, CTA), carousel, A2UI form, webview, PIX key, PIX charge | vanish | vanish | the phone took longer than 20 s |
+| Poll, raw `pollCreationMessageV3.contextInfo` | vanishes | vanishes | on the phone one poll seemed to vanish only when the sender disconnected; the next run did not repeat it |
+| Poll, `contextInfo` in the send options | vanishes | vanishes | |
+| Poll, typed `{ type: 'poll', contextInfo }` | stays | stays | zapo 1.10 drops the content-level `contextInfo` of a poll, see gotcha 15 |
+| Side effect on the recipient | chat switched to disappearing messages (20 s) | same | the owner turned it off by hand; each new batch turned it on again |
+| `expirationSeconds: 60` on a single message | stays | stays | the per-message expiration did nothing |
+
 ## Business privacy mode
 
 | Format | Phone | Web | Notes |

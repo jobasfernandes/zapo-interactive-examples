@@ -12,6 +12,8 @@ Silent failures found while building these examples, as symptom and cause. Read 
 | `src/lib/client.ts` | 10 |
 | `src/lib/biz-privacy.ts`, `META_HOSTED_BANNER` | 12 |
 | `src/examples/group-status.ts`, `/group-status` | 3, 13 |
+| `src/bot/handle.ts` (`decideVote`), `/poll` | 14, 15 |
+| any message with `afterReadDuration` or `disappearingMode` in its `contextInfo` | 16 |
 
 ## 1. A2UI form shows "not supported" on Android
 
@@ -104,3 +106,21 @@ Silent failures found while building these examples, as symptom and cause. Read 
   - `contextInfo`, `mentions` or `quote` passed in the send options land on the wrapper or on `messageContextInfo`, not on the inner message, and are dropped on encode.
   - On the receiving side, WhatsApp Web hides it when the chat is archived or locked or the group is not trusted, and a phone without the feature shows an "update WhatsApp" bubble instead.
 - **Fix:** what `src/examples/group-status.ts` does: `contextInfo.isGroupStatus` written inside the inner message, the 32-byte secret on the outer one, the `<meta is_group_status="true" origin="group_status">` node, and the bot command adds `@g.us`. Upload the image again for every post (entry 3).
+
+## 14. Poll vote arrives and nothing happens
+
+- **Symptom:** a `message_addon` with `kind: 'poll_vote'` is delivered for a poll the bot sent, but nothing runs. With a revoke timer, the poll just disappears after the timeout.
+- **Cause:** zapo 1.10 keeps the *secret* of a poll it sends, not the poll itself (the store has no `from_me` rows), so it cannot map the vote back to option names: `decrypted.selectedOptionNames` is `null`. The vote still carries `decrypted.pollVote.selectedOptions`, the SHA-256 of each chosen option text.
+- **Fix:** match those hashes against the SHA-256 of the options you sent. `decideVote` does it with the example titles.
+
+## 15. Poll sent with `contextInfo` goes out without it
+
+- **Symptom:** `{ type: 'poll', ..., contextInfo }` reaches the recipient with none of the context info (no mentions, expiration or after-read fields).
+- **Cause:** zapo 1.10 reads a content-level `contextInfo` only for text and media (`pickContentContextInfo`). The poll builder ignores it, although the type declares it.
+- **Fix:** pass `contextInfo` in the send options (`send(jid, content, { contextInfo })`), which zapo applies to the poll body, or send the raw `pollCreationMessageV3` with its own `contextInfo`.
+
+## 16. A message that vanishes after reading also turns on disappearing messages in the chat
+
+- **Symptom:** a message sent with `contextInfo.afterReadDuration` (plus `disappearingMode` and `ephemeralSettingTimestamp`, the trick from Baileys examples) vanishes after being read with no "message deleted" notice, but the recipient's chat then shows disappearing messages on (20 s in the test), on the phone and on Web, until they turn it off.
+- **Cause:** the receiving client applies those fields as the chat's disappearing-messages setting, not as a property of that one message, and every new batch turned it on again. Text, the list menu, the buttons, the carousel, the A2UI form, the webview, the PIX and charge cards and polls (raw, or through the send options) all vanished this way. `expirationSeconds` on a single message did nothing.
+- **Fix:** none that is safe to ship. Do not send these fields to a real chat; the recipient switches it off in the contact's "Disappearing messages". A revoke is the only per-message removal, and it leaves the "message deleted" notice.
