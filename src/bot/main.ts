@@ -5,6 +5,7 @@
  */
 import type { WaIncomingMessageEvent } from 'zapo-js'
 
+import { groupStatusExample } from '../examples/group-status.js'
 import { EXAMPLES } from '../examples/index.js'
 import { buildMenu, HELP_TEXT } from '../examples/menu.js'
 import { replyToOrder } from '../examples/order.js'
@@ -12,7 +13,7 @@ import type { ExampleContext, SendContent } from '../examples/types.js'
 import { connectAndWait, createRuntime, ownJids } from '../lib/client.js'
 import { loadConfig } from '../lib/config.js'
 import { createLogger, formatResponse } from '../lib/log.js'
-import { chatContext, decide, isStale } from './handle.js'
+import { chatContext, decide, groupStatusFailureReply, isStale } from './handle.js'
 
 const config = loadConfig()
 const runtime = await createRuntime(config)
@@ -57,6 +58,19 @@ async function handle(event: WaIncomingMessageEvent, startedAtSeconds: number): 
         case 'response':
             log(formatResponse(ctx.chatJid, event.key.participant, action.name, action.paramsJson))
             return
+        case 'reply':
+            return reply(ctx.chatJid, action.text)
+        case 'group-status': {
+            // The status lands in another chat, so the one that asked always gets an answer.
+            try {
+                const ids = await groupStatusExample.send({ ...exampleContext, chatJid: action.groupJid }, [])
+                ids.forEach((id) => sentByBot.add(id))
+                return reply(ctx.chatJid, `Group status posted to ${action.groupJid}.`)
+            } catch (error) {
+                log(`ERROR group-status ${action.groupJid}: ${error instanceof Error ? error.message : String(error)}`)
+                return reply(ctx.chatJid, groupStatusFailureReply(action.groupJid, error))
+            }
+        }
     }
 }
 

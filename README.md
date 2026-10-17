@@ -38,6 +38,7 @@
 - [Send One Example Without the Bot](#send-one-example-without-the-bot)
 - [Configuration](#configuration)
 - [Meta-Hosted Banner](#meta-hosted-banner)
+- [Group Status](#group-status)
 - [Project Structure](#project-structure)
 - [Known Limitations](#known-limitations)
 - [Documentation](#documentation)
@@ -60,6 +61,7 @@ Every example here was checked on an Android phone and on WhatsApp Web. What ren
 - **Catalog** -- product cards, product carousels with native catalog buttons, the `wa.me/c` catalog share and the interactive `catalog_message`
 - **Orders** -- the seller's `review_and_pay` cards, sent as a reaction to a buyer's cart
 - **PIX** -- the static PIX key card and a PIX charge that opens the native payment flow on the phone
+- **Group status** -- the repo banner posted as a status of a group (`groupStatusMessageV2`), from the bot or the CLI
 - **Test bot** -- `/commands` and a list menu, access limited to allowed numbers and groups
 - **Send CLI** -- one example to one chat, no bot needed
 
@@ -96,6 +98,8 @@ Commands always start with `/`; plain text never triggers the bot.
 
 Everyone else is ignored; their commands are logged to `logs/bot.log` as `DENIED` so you can check the allowlists. Write numbers the way WhatsApp stores them (in Brazil that is often without the extra ninth digit). Type `/groups` in your own chat to get the id of a group for `ALLOWED_GROUPS`.
 
+`/group-status` follows the same rules for who may ask, and it only posts to groups in `ALLOWED_GROUPS`, whoever asks.
+
 ### Commands
 
 | Command | Sends | Needs a catalog |
@@ -112,6 +116,7 @@ Everyone else is ignored; their commands are logged to `logs/bot.log` as `DENIED
 | `/catalog [product\|all\|mixed]` | carousel of catalog products; the card button opens the product, the whole catalog, or alternates | yes |
 | `/catalog-link` | the catalog share the WhatsApp app sends (`wa.me/c` link preview) | yes |
 | `/catalog-message [product]` | interactive `catalog_message`: one button that opens the catalog | yes |
+| `/group-status <group-jid>` | the portrait banner posted as a status of that group, which must be in `ALLOWED_GROUPS` (see [Group Status](#group-status)) | no |
 | `/groups` | the account's groups and their ids (only in your own chat) | no |
 
 The bot also **reacts to carts**: when an allowed contact sends a cart from your catalog, it answers with the two order cards a seller sends (accept and decline), quoting the cart. Button and form answers are written to `logs/bot.log`.
@@ -122,9 +127,10 @@ The bot also **reacts to carts**: when an allowed contact sends a cart from your
 npm run send -- <command> <phone-digits | group-jid> [args...] [--label "text"]
 npm run send -- carousel 5511999999999
 npm run send -- catalog 120363000000000000@g.us mixed
+npm run send -- group-status 120363000000000000@g.us
 ```
 
-`--label` sends a plain text first, handy to number a batch of manual tests.
+`--label` sends a plain text first, handy to number a batch of manual tests. `group-status` needs a group jid ending in `@g.us`.
 
 ### Configuration
 
@@ -135,7 +141,7 @@ All variables are optional; see [.env.example](.env.example). A `.env` file in t
 | `AUTH_PATH` | `.auth/session.sqlite` | SQLite file with the paired session |
 | `SESSION_ID` | `default` | session id inside that file |
 | `ALLOWED_NUMBERS` | empty | phone numbers (digits with country code, comma separated) |
-| `ALLOWED_GROUPS` | empty | group ids (comma separated) |
+| `ALLOWED_GROUPS` | empty | group ids (comma separated); also the only groups `/group-status` posts to |
 | `LOG_LEVEL` | `warn` | zapo-js log level |
 | `CTA_URL` | `https://github.com/vinikjkkj/zapo` | link of `cta_url` buttons |
 | `WEBVIEW_URL` | `https://github.com/vinikjkkj/zapo` | page opened by `/webview` |
@@ -161,6 +167,28 @@ Before turning it on:
 - **Why the 👋 first.** Each of the contact's devices shows the banner only when the mode it stored for the business changes. A phone keeps the Meta mode even after the chat is deleted, so the Meta stamp alone showed nothing there the second time; switching to end-to-end first turns it into a change on every device. A device that still had the Meta mode shows "now end-to-end encrypted" right before the banner.
 - **Only the first message per chat, per run.** Later messages go out untouched: with every message stamped, WhatsApp Web showed the banner again each time it re-synced the business with the servers, which know this account is not hosted (three times in a new chat). Restart the bot to run the switch again. See entry 12 in [docs/gotchas.md](docs/gotchas.md).
 
+### Group Status
+
+`/group-status <group-jid>` posts the repo banner (a 1080x1920 portrait in Portuguese, with a caption that links this repo) as a **group status**: the status a member posts to a group. Members see it on the group's status for 24 hours (the ring around the group photo and the Updates tab on the phone, Status on WhatsApp Web), and it never enters the chat timeline. Ask from any chat the bot answers, typically your private chat with it: the bot posts only to groups in `ALLOWED_GROUPS` and replies in the chat that asked. Without the bot: `npm run send -- group-status 120363000000000000@g.us`.
+
+On the wire it is an ordinary group message (sender key) with the content wrapped:
+
+```ts
+{
+    messageContextInfo: { messageSecret }, // 32 random bytes, on the outer message only
+    groupStatusMessageV2: {
+        message: { imageMessage: { ...upload, caption, width, height, jpegThumbnail, contextInfo: { isGroupStatus: true } } }
+    }
+}
+```
+
+It goes out with `customNodes: [<meta is_group_status="true" origin="group_status"/>]`, the node the Android app attaches (zapo does not), and `disableGroupEphemeralAutoInject: true`. zapo 1.10 already sends the wrapped image as `type="media"` with `mediatype="image"`, and the server acks with `is_group_status="true"`. Observed on 2026-10-16 on an Android phone and on WhatsApp Web ([docs/delivery-matrix.md](docs/delivery-matrix.md#group-status)); what makes it vanish silently is entry 13 in [docs/gotchas.md](docs/gotchas.md).
+
+Where it does not show:
+
+- WhatsApp Web hides group statuses of archived or locked chats, and of groups it does not trust: you are not the owner, and neither the owner, whoever added you, nor any admin is in your contacts.
+- A phone where WhatsApp has not turned group statuses on shows "Someone shared a group status. Update to the latest version of WhatsApp" in the group chat instead (read in the decompiled Android app, not observed).
+
 ### Project Structure
 
 | File | What to copy from it |
@@ -176,6 +204,8 @@ Before turning it on:
 | [src/examples/catalog-solo.ts](src/examples/catalog-solo.ts) | `wa.me/c` link preview and `catalog_message` |
 | [src/examples/order.ts](src/examples/order.ts) | `review_and_pay` order cards |
 | [src/examples/pix.ts](src/examples/pix.ts) | `payment_info` PIX key card and `review_and_pay` PIX charge |
+| [src/examples/group-status.ts](src/examples/group-status.ts) | `groupStatusMessageV2` with the `<meta is_group_status>` node (`/group-status`) |
+| [assets/](assets/) | the banner and thumbnail `/group-status` posts |
 | [src/examples/menu.ts](src/examples/menu.ts) | classic `listMessage` that also renders on WhatsApp Web |
 | [src/bot/](src/bot/) | the bot: access rules, command routing, cart reaction |
 | [src/cli/send.ts](src/cli/send.ts) | the send CLI |
@@ -187,7 +217,7 @@ Before turning it on:
 - A form answered on the phone shows as "Use your phone" on that person's WhatsApp Web: Android always answers with `version: 3`, which Web rejects. The bot receives both answers fine.
 - The buyer's cart only carries the item count and the total, so the order cards list your catalog products cycled up to that count: an approximation until the real order details can be fetched.
 - Catalog examples need products already shared from the app (no catalog API yet).
-- When a recipient's device asks for a message again (retry receipt), zapo rebuilds it without any `<biz>` node: that copy loses the list menu's `<list>` node and the Meta-hosted stamp.
+- When a recipient's device asks for a message again (retry receipt), zapo rebuilds it without any `<biz>` node: that copy loses the list menu's `<list>` node and the Meta-hosted stamp. It also loses the group status `<meta>` node, though it keeps the wrapper, which is what receivers read (read in WhatsApp Web's code, not observed).
 
 ### Documentation
 

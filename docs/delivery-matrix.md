@@ -73,6 +73,15 @@ What each format does on an Android phone and on WhatsApp Web, sent from a linke
 | 👋 stamped end-to-end, then the first message stamped as hosted by Meta (current `META_HOSTED_BANNER`), chat opened from the phone that still had the Meta mode | shows the banner once, with "end-to-end encrypted" notices around it (three in total) | not recorded | the last notice came after the first unstamped reply, then no more |
 | Same, after a bot restart, chat opened from Web | shows the banner once, no repeats | shows the banner once, no repeats | several commands exchanged after it |
 
+## Group status
+
+Sent to the group jid inside `groupStatusMessageV2`, with `<meta is_group_status="true" origin="group_status">` in the stanza; the server ack carried `is_group_status="true"` both times. Web was checked by reading its status list (`StatusCollection.getValidStatus`), the phone by eye.
+
+| Format | Phone | Web | Notes |
+|---|---|---|---|
+| Text status: `extendedTextMessage` with `backgroundArgb`, `textArgb` and `font: 6` | shows on the group's status | listed under the group in Status, text and color kept | test send, not a bot command; stanza `type="text"` |
+| Image status: the 1080x1920 banner with caption and thumbnail (`/group-status`) | shows on the group's status | listed under the group in Status, with caption and thumbnail | stanza `type="media"`, `<enc mediatype="image">` |
+
 ## Groups
 
 | Format | Result | Notes |

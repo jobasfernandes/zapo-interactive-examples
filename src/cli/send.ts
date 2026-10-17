@@ -2,10 +2,11 @@
  * Sends one example without the bot:
  *   npm run send -- <command> <phone-digits | group-jid> [args...] [--label "text"]
  * `--label` first sends that plain text, handy to number a batch of test sends.
+ * `group-status` posts to a group, so its target is a group jid ending in `@g.us`.
  */
 import { delay, parsePhoneJid } from 'zapo-js'
 
-import { EXAMPLES, findExample } from '../examples/index.js'
+import { COMMANDS, findExample } from '../examples/index.js'
 import { connectAndWait, createRuntime } from '../lib/client.js'
 import { loadConfig } from '../lib/config.js'
 import { createLogger } from '../lib/log.js'
@@ -13,7 +14,7 @@ import { createLogger } from '../lib/log.js'
 function usage(problem: string): never {
     console.error(`${problem}\n\nusage: npm run send -- <command> <phone-digits | group-jid> [args...] [--label "text"]\n`)
     console.error('commands:')
-    for (const example of EXAMPLES) console.error(`  ${example.command.padEnd(10)} ${example.description}`)
+    for (const example of COMMANDS) console.error(`  ${example.command.padEnd(10)} ${example.description}`)
     process.exit(1)
 }
 

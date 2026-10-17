@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { proto, type WaIncomingMessageEvent } from 'zapo-js'
 
-import { chatContext, decide, isStale } from '../src/bot/handle.js'
-import { EXAMPLES } from '../src/examples/index.js'
+import { chatContext, decide, GROUP_STATUS_USAGE, groupStatusFailureReply, isStale } from '../src/bot/handle.js'
+import { groupStatusExample } from '../src/examples/group-status.js'
+import { COMMANDS, EXAMPLES, findExample } from '../src/examples/index.js'
 import { buildMenu, HELP_TEXT } from '../src/examples/menu.js'
 import { isAllowed, type ChatContext } from '../src/lib/access.js'
+import { parseCommand } from '../src/lib/commands.js'
 import { parseConfig } from '../src/lib/config.js'
 
 const config = parseConfig({ ALLOWED_NUMBERS: '5511999999999' })
@@ -100,6 +102,70 @@ describe('decide', () => {
     })
 })
 
+describe('decide /group-status', () => {
+    const groupConfig = parseConfig({ ALLOWED_NUMBERS: '5511999999999', ALLOWED_GROUPS: '120363000000000000@g.us' })
+    const refusal = 'No group status was posted: 120363999999999999@g.us is not in ALLOWED_GROUPS.'
+
+    it('posts to an allowed group, asked from a private chat', () => {
+        expect(decide(event(text('/group-status 120363000000000000@g.us')), allowed, groupConfig, new Set())).toEqual({
+            kind: 'group-status',
+            groupJid: '120363000000000000@g.us'
+        })
+    })
+
+    it('adds @g.us to a bare group id', () => {
+        expect(decide(event(text('/group-status 120363000000000000')), allowed, groupConfig, new Set())).toEqual({
+            kind: 'group-status',
+            groupJid: '120363000000000000@g.us'
+        })
+    })
+
+    it('refuses a group that is not in ALLOWED_GROUPS', () => {
+        expect(decide(event(text('/group-status 120363999999999999@g.us')), allowed, groupConfig, new Set())).toEqual({
+            kind: 'reply',
+            text: refusal
+        })
+        expect(decide(event(text('/group-status 120363999999999999@g.us')), owner, config, new Set())).toEqual({
+            kind: 'reply',
+            text: refusal
+        })
+    })
+
+    it('answers with the usage when the group id is missing', () => {
+        expect(decide(event(text('/group-status')), owner, groupConfig, new Set())).toEqual({ kind: 'reply', text: GROUP_STATUS_USAGE })
+    })
+
+    it('never replies with text its own echo would run as a command', () => {
+        expect(parseCommand(GROUP_STATUS_USAGE)).toBeNull()
+        expect(parseCommand(refusal)).toBeNull()
+    })
+
+    it('keeps the refusal safe when the argument itself starts with a slash', () => {
+        const action = decide(event(text('/group-status /menu')), owner, groupConfig, new Set())
+        expect(action.kind).toBe('reply')
+        expect(action.kind === 'reply' && parseCommand(action.text)).toBeNull()
+    })
+
+    it('still ignores people who are not allowed', () => {
+        expect(decide(event(text('/group-status 120363000000000000@g.us')), stranger, groupConfig, new Set())).toEqual({ kind: 'denied' })
+    })
+})
+
+describe('groupStatusFailureReply', () => {
+    it('does not call an unconfirmed post a failure, so the owner does not post it twice', () => {
+        const reply = groupStatusFailureReply('120363000000000000@g.us', new Error('query timeout for message 3EB0 after 30000ms'))
+        expect(reply).toBe(
+            'The server did not confirm the group status to 120363000000000000@g.us in time. It may still show up: check the group before asking again.'
+        )
+    })
+
+    it('reports any other error as a failure', () => {
+        const reply = groupStatusFailureReply('120363000000000000@g.us', new Error('negative publish ack: error=403'))
+        expect(reply).toBe('Could not post the group status to 120363000000000000@g.us: negative publish ack: error=403')
+        expect(parseCommand(reply)).toBeNull()
+    })
+})
+
 describe('chatContext', () => {
     const own = { pn: '5511000000000@s.whatsapp.net', lid: '111111111111111@lid' }
 
@@ -160,6 +226,12 @@ describe('buildMenu', () => {
         expect(rows.map((row) => row.rowId)).toEqual(EXAMPLES.map((example) => `/${example.command}`))
         expect(rows[0]).toEqual({ rowId: `/${EXAMPLES[0].command}`, title: EXAMPLES[0].title, description: EXAMPLES[0].description })
     })
+
+    it('leaves /group-status out of the menu, which is at the 10-row cap, but the CLI finds it', () => {
+        expect(EXAMPLES.map((example) => example.command)).not.toContain('group-status')
+        expect(COMMANDS).toContain(groupStatusExample)
+        expect(findExample('group-status')).toBe(groupStatusExample)
+    })
 })
 
 describe('HELP_TEXT', () => {
@@ -167,5 +239,9 @@ describe('HELP_TEXT', () => {
         const help = HELP_TEXT(EXAMPLES)
         expect(help).toContain('/buttons')
         expect(help.split('\n').every((line) => !line.trimStart().startsWith('/'))).toBe(true)
+    })
+
+    it('documents /group-status with its argument', () => {
+        expect(HELP_TEXT(EXAMPLES)).toContain('/group-status <group-jid>')
     })
 })

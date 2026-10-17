@@ -11,6 +11,7 @@ Silent failures found while building these examples, as symptom and cause. Read 
 | `src/lib/catalog-history.ts` | 8, 9 |
 | `src/lib/client.ts` | 10 |
 | `src/lib/biz-privacy.ts`, `META_HOSTED_BANNER` | 12 |
+| `src/examples/group-status.ts`, `/group-status` | 3, 13 |
 
 ## 1. A2UI form shows "not supported" on Android
 
@@ -92,3 +93,14 @@ Silent failures found while building these examples, as symptom and cause. Read 
 - **Symptom:** with `META_HOSTED_BANNER=true`, the contact sees "This business is now using a secure service from Meta to manage this chat" more than once, or a "now end-to-end encrypted" message after it.
 - **Cause:** each of the contact's devices stores the business privacy mode on its own and adds a system message only when that mode changes and the received `privacy_mode_ts` is strictly newer than the stored one (WhatsApp Web: `WAWebHandlePrivacyModeUpdateMsgAction`, `WAWebBizCreateBizStateChangeNotificationMsgsAction`). WhatsApp Web also re-syncs the business with the server (`updateVerifiedInfo`, on a new chat and later on its own), and for an SMB account the server has no privacy mode, so the stored mode quietly goes back to end-to-end and the next stamped message shows the banner again. Observed 2026-10-16 with every message stamped: three banners in a new chat on Web, with its `verified-business-name` record back to `isSmb: true, privacyMode: null`. Which device opened the chat also changes what each device shows: WhatsApp Web copies the business mode it has stored into the `<biz>` of every message it sends to that business (`WAWebSendMsgCreateFanoutStanza`), and that copy also reaches the contact's phone, while Android does this only for API businesses. A phone keeps the Meta mode after the chat is deleted (it is stored per business), and in a new chat Android shows the end-to-end notice for an SMB account, so a second Meta stamp shows nothing there. On Android, a business message without the attrs can reset the chat to end-to-end (read in the decompiled app, not observed). A copy zapo resends after a retry receipt carries no `<biz>` node at all.
 - **Fix:** send the first message per chat in two steps: a 👋 stamped end-to-end, then the message stamped as hosted by Meta with a newer timestamp, which is a mode change on every device; leave later messages unstamped. `installHostedPrivacyMode` keeps this per process (a restart runs the switch again) and keys the stamps by stanza id, so zapo's retries keep them. Nothing reverts the contact's stored mode on purpose except a newer timestamp with another mode, and that shows its own system message.
+
+## 13. Group status acked but never shows
+
+- **Symptom:** the server acks a group status (`groupStatusMessageV2` sent to the group jid), but the members never see it.
+- **Cause:** read in zapo's code and changelog while building `/group-status`, none of them hit by the final code:
+  - zapo before 1.8 sent the wrapped image as `type="media"` with no `mediatype`, a pair the server acks and drops. zapo 1.8 unwraps `groupStatusMessageV2` to pick both; overriding `type` through `additionalAttributes` brings the bad pair back.
+  - zapo normalizes an id without `@g.us` (and without a hyphen) to `@s.whatsapp.net`, a private chat.
+  - `font` written as a string (`'SYSTEM_BOLD'`, as in whatsmeow's JSON dumps) is encoded as 0: zapo's encoder only takes enum numbers (`SYSTEM_BOLD` is 6).
+  - `contextInfo`, `mentions` or `quote` passed in the send options land on the wrapper or on `messageContextInfo`, not on the inner message, and are dropped on encode.
+  - On the receiving side, WhatsApp Web hides it when the chat is archived or locked or the group is not trusted, and a phone without the feature shows an "update WhatsApp" bubble instead.
+- **Fix:** what `src/examples/group-status.ts` does: `contextInfo.isGroupStatus` written inside the inner message, the 32-byte secret on the outer one, the `<meta is_group_status="true" origin="group_status">` node, and the bot command adds `@g.us`. Upload the image again for every post (entry 3).
