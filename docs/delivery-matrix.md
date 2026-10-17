@@ -84,7 +84,7 @@ Messages sent with `contextInfo.afterReadDuration` (plus `disappearingMode` and 
 | Poll, raw `pollCreationMessageV3.contextInfo` | vanishes | vanishes | on the phone one poll seemed to vanish only when the sender disconnected; the next run did not repeat it |
 | Poll, `contextInfo` in the send options | vanishes | vanishes | |
 | Poll, typed `{ type: 'poll', contextInfo }` | stays | stays | zapo 1.10 drops the content-level `contextInfo` of a poll, see gotcha 15 |
-| Side effect on the recipient | chat switched to disappearing messages (20 s) | same | the owner turned it off by hand; each new batch turned it on again |
+| Side effect on the recipient | chat switched to disappearing messages (20 s) | same | the owner turned it off by hand; each new batch turned it on again, and each change left a system notice ("The duration of disappearing messages was updated ...") that stays in the chat |
 | `expirationSeconds: 60` on a single message | stays | stays | the per-message expiration did nothing |
 
 ## Business privacy mode
