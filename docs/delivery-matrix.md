@@ -73,6 +73,21 @@ Sent by the bot (a WhatsApp Business account) to a personal account and to an al
 | Poll revoked by the bot (first version of the command) | shows "message deleted" | not recorded | why the revoke was dropped |
 | Button and form answers echoed by the bot | works | works | `• Selected <id>` or `• Tapped "<text>" (<id>)`, quoting the tap; the owner's own taps outside the self-chat are only logged |
 
+## Meta AI
+
+`/ai` sends the question to Meta AI from the paired account. Observed on 2026-10-17 with the bot (a WhatsApp Business account) writing to a personal account and to a group of two members. The first sightings came from a client that looks like WhatsApp Web. On 2026-10-18 the owner saw the label and the notice on both the phone and WhatsApp Web, so those two phone cells are filled; the other cells of the phone column stay "not recorded". The group was watched from the other member's session.
+
+| Format | Phone | Web | Notes |
+|---|---|---|---|
+| "Thinking…" quoting the question, edited into the answer | not recorded | works | the bubble gets the "Edited" tag and keeps the quote, because the edit repeats `quote`; `editKey: { id }` is enough |
+| AI label: `<bot biz_bot="1"/>` on the placeholder, private chat | shows the "IA" mark in the bubble | shows "IA" with a sparkle next to the time | stays after the edit; a node only on the edit does nothing |
+| System notice after the first labeled message | WhatsApp adds the notice | WhatsApp adds one line once ("A IA da Meta recebe as mensagens da conversa e pode usá-las para melhorar a própria qualidade e para gerar mensagens para esta empresa") | the client's own text for business AI chats, in the account's language |
+| `/ai` in a private chat with `META_HOSTED_BANNER=true`, the first message the bot writes to that chat in the run | works as expected, and the Meta-hosted banner shows | works as expected, and the Meta-hosted banner shows | observed 2026-10-18 on the owner's account: the 👋 goes first without the label, then the "Thinking…" carries the label and the hosted stamp; the edit and any fallback go out untouched, and the prompt to Meta AI is not stamped |
+| The same node in a group | refused | refused | the server answers NACK 479, not retryable; the same message without the node is delivered |
+| Edit of the placeholder in a group | not checked | arrives as a type 14 message that targets the placeholder id | `editKey: { id }` alone; adding `participant` changed nothing |
+| Prompt sent over a stale Signal session with Meta AI | single tick in the Meta AI chat, never answered | n/a | the prompt is acked, no chunk comes, and Meta AI asks for retries that zapo rejects; dropping the stored session fixes it (gotcha 21) |
+| The answer stream | n/a | n/a | the first chunk comes 0.7 to 1.7 s after the send ack with the first words, then 3 to 5 edit chunks that each hold the whole text so far, about 3 s for 120 words; two prompts in flight at once each got their own answer, but the bot sends one at a time (README, Meta AI) |
+
 ## Disappearing after reading
 
 Messages sent with `contextInfo.afterReadDuration` (plus `disappearingMode` and `ephemeralSettingTimestamp`) vanish after being read, with no "message deleted" notice. It is an experiment, not a feature of the examples: it switches the recipient's chat to disappearing messages, see gotcha 16. Observed on 2026-10-17 from the Business account to a personal account, with `afterReadDuration` 20.

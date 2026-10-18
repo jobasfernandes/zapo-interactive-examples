@@ -14,6 +14,10 @@ Silent failures found while building these examples, as symptom and cause. Read 
 | `src/examples/group-status.ts`, `/group-status` | 3, 13 |
 | `src/bot/handle.ts` (`decideVote`), `/poll` | 14, 15 |
 | any message with `afterReadDuration` or `disappearingMode` in its `contextInfo` | 16 |
+| `src/lib/meta-ai.ts`, `/ai` | 17 |
+| `src/bot/ai-reply.ts`, the AI label (`<bot biz_bot="1"/>`) | 18, 19, 20 |
+| `forgetBotSession`, the Meta AI session | 21 |
+| `AI_SYSTEM_PROMPT`, who may use `/ai` | 22 |
 
 ## 1. A2UI form shows "not supported" on Android
 
@@ -124,3 +128,39 @@ Silent failures found while building these examples, as symptom and cause. Read 
 - **Symptom:** a message sent with `contextInfo.afterReadDuration` (plus `disappearingMode` and `ephemeralSettingTimestamp`, the trick from Baileys examples) vanishes after being read with no "message deleted" notice, but the recipient's chat then shows disappearing messages on (20 s in the test), on the phone and on Web, until they turn it off. Each time the client takes the setting in, it also adds a system notice to the chat ("The duration of disappearing messages was updated. New messages will disappear from this chat 20 seconds after sending ..."). The notices are not disappearing messages, so they stay (four piled up in the test).
 - **Cause:** the receiving client applies those fields as the chat's disappearing-messages setting, not as a property of that one message, and every new batch turned it on again. Text, the list menu, the buttons, the carousel, the A2UI form, the webview, the PIX and charge cards and polls (raw, or through the send options) all vanished this way. `expirationSeconds` on a single message did nothing.
 - **Fix:** none that is safe to ship. Do not send these fields to a real chat; the recipient switches it off in the contact's "Disappearing messages". A revoke is the only per-message removal, and it leaves the "message deleted" notice.
+
+## 17. Meta AI answer comes out repeated or garbled when the chunks are joined
+
+- **Symptom:** the answer to a prompt sent with `client.bot.sendPrompt` has its text repeated, or each growing prefix glued to the next one.
+- **Cause:** zapo's doc comment on `tryDecryptChunk` says to concatenate the `message_bot_chunk` events. They are not pieces: the `first` chunk holds the start of the answer, and every later one (`inner`, `last`) is a type 14 edit whose `editedMessage.richResponseMessage` holds the whole text so far. The last snapshot is usually repeated by one or two extra `inner` chunks.
+- **Fix:** keep only the latest snapshot and end at `last` or `full`, as `src/lib/meta-ai.ts` does. Match chunks to prompts by `targetMessageId`, and register the wait before sending: a chunk can arrive before `sendPrompt` resolves.
+
+## 18. A send with the AI label node fails in a group
+
+- **Symptom:** `MessagePublishNackError: negative publish ack ... error=479` (`retryable: false`), in about 120 ms, when a message with `<bot biz_bot="1"/>` goes to a group. The same message without the node is delivered.
+- **Cause:** the server accepts the node in private chats only and refuses the stanza in groups.
+- **Fix:** never send the node to a `@g.us` chat (`src/bot/ai-reply.ts` decides by `ChatContext.isGroup`). If a private chat rejects it too, send the message again without it.
+
+## 19. The AI label is missing after the message was edited
+
+- **Symptom:** a message that was edited shows no "IA" mark when the `<bot>` node was only on the edit stanza, while the same message with the node on its first stanza keeps the mark through the edit.
+- **Cause:** the mark belongs to the first stanza of a message; an edit neither adds nor removes it.
+- **Fix:** put the node on the first message (the "Thinking…" placeholder, or the new message when the edit failed) and leave the edit plain.
+
+## 20. WhatsApp adds a Meta AI notice to the chat after the first labeled message
+
+- **Symptom:** the contact's chat gets a system line right before the first message with the AI label ("A IA da Meta recebe as mensagens da conversa e pode usá-las para melhorar a própria qualidade e para gerar mensagens para esta empresa. Clique para saber mais." in Portuguese).
+- **Cause:** it is the client's own text for chats with a business AI. It says more than the bot does: only the `/ai` question goes to Meta AI, not the conversation.
+- **Fix:** none; it appears once per chat. Warn the people you test with, because the label is on for every private chat in which `/ai` answers.
+
+## 21. Meta AI never answers: the prompt is acked and no chunk comes
+
+- **Symptom:** `client.bot.sendPrompt` resolves with an ack, no `message_bot_chunk` ever arrives (`/ai` ends in "did not answer in time"), and in the Meta AI chat of the paired phone the bot's prompt shows a single tick, so it never reached Meta AI. With `LOG_LEVEL=debug` the log has, right after the send, `retry request rejected: missing compatible session` with `requester: '867051314767696@bot'`.
+- **Cause:** Meta AI lost its side of the Signal session with the account (a few hours after the last prompt, on a personal and a Business account at once). Our stored session is stale: the prompts are encrypted with it, Meta AI cannot read them and asks for a retry, zapo cannot serve that retry, and the stale session stays. Restarting the bot does not help.
+- **Fix:** drop the stored session with `867051314767696@bot` (the `signal_session` row; the identity can stay) so zapo builds a new one on the next send, which then answers in about 1 s. `src/lib/meta-ai.ts` does it through the store (`forgetBotSession`) before the first prompt of every new thread; a chat whose question got no chunk at all starts a new thread, so its next question resets again (another chat with a live thread can still lose one question on the stale session first). The bot sends one prompt at a time, so the reset never cuts an answer that is still streaming; only one the bot had already given up on after 35 s can lose its tail.
+
+## 22. A contact reads what another chat told /ai
+
+- **Symptom:** asking `/ai` in one chat what code word or fact someone told it earlier returns what another chat said, in the same run and also after a restart. "What do you remember about me?" lists facts from other chats.
+- **Cause:** Meta AI ties its memory to the paired account, not to `aiThreadId`: a thread per chat keeps the follow-ups of one chat together, but it is no wall between chats. Measured with code words planted in one chat and asked for in another; without a guardrail the word came back in every run.
+- **Fix:** none in code. Asking the model in `AI_SYSTEM_PROMPT` to keep conversations apart did not work: a generic sentence let the word through; "start fresh and keep nothing" blocked it but makes the model say something false; an honest "I cannot share anything from other conversations" blocked it but also refused a follow-up in the same chat; and a version that allowed the current conversation leaked again and refused the person's own data. So treat the allowlist as one circle of trust, never put a secret in `AI_SYSTEM_PROMPT`, and give the bot a number of its own, because the account's memory also holds whatever its owner told Meta AI.

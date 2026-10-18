@@ -39,6 +39,7 @@
 - [Configuration](#configuration)
 - [Meta-Hosted Banner](#meta-hosted-banner)
 - [Group Status](#group-status)
+- [Meta AI](#meta-ai)
 - [Project Structure](#project-structure)
 - [Known Limitations](#known-limitations)
 - [Documentation](#documentation)
@@ -62,6 +63,7 @@ Every example here was checked on an Android phone and on WhatsApp Web. What ren
 - **Orders** -- the seller's `review_and_pay` cards, sent as a reaction to a buyer's cart
 - **PIX** -- the static PIX key card and a PIX charge that opens the native payment flow on the phone
 - **Poll menu** -- the examples as a poll: each vote is decrypted and runs the example it picks, and the poll stays in the chat as a menu
+- **Meta AI** -- `/ai <question>` relays the question to Meta AI through the paired account; a "Thinking…" message is edited into the answer, with the AI label in private chats
 - **Group status** -- the repo banner posted as a status of a group (`groupStatusMessageV2`), from the bot or the CLI
 - **Test bot** -- `/commands` and a list menu, access limited to allowed numbers and groups
 - **Send CLI** -- one example to one chat, no bot needed
@@ -103,12 +105,15 @@ A vote on a `/poll` follows the same rules as a command: the voter must be allow
 
 `/group-status` follows the same rules for who may ask, and it only posts to groups in `ALLOWED_GROUPS`, whoever asks.
 
+`/ai` follows the same rules as a command, and whatever it asks is sent to Meta AI from the paired account (see [Meta AI](#meta-ai)).
+
 ### Commands
 
 | Command | Sends | Needs a catalog |
 |---|---|---|
 | `/menu` | a list with every example; picking a row runs it | no |
 | `/poll` | a poll with every example; every vote runs the example it picks, and the poll stays in the chat | no |
+| `/ai <question>` | the answer from Meta AI: a "Thinking…" message quoting the question is edited into it; follow-ups in the chat keep the context for 30 minutes (see [Meta AI](#meta-ai)) | no |
 | `/help` | the command list as text | no |
 | `/buttons` | legacy buttons, quick reply buttons, CTA buttons (link, call, copy) | no |
 | `/carousel` | generic carousel: image cards with a quick reply and a link | no |
@@ -155,6 +160,7 @@ All variables are optional; see [.env.example](.env.example). A `.env` file in t
 | `PIX_KEY_TYPE` | `PHONE` | `EVP`, `EMAIL`, `PHONE`, `CPF` or `CNPJ` |
 | `PIX_MERCHANT_NAME` | `vinikjkkj (zapo)` | name shown as "requested by" |
 | `META_HOSTED_BANNER` | `false` | experimental: `true` marks the first message to each private chat as hosted by Meta, with a 👋 before it; read [Meta-Hosted Banner](#meta-hosted-banner) first |
+| `AI_SYSTEM_PROMPT` | empty | text put before the first `/ai` question of each conversation; wrap it in double quotes to span several lines; Meta AI has no system prompt field, so it is a plain instruction in the prompt |
 
 ### Meta-Hosted Banner
 
@@ -193,6 +199,29 @@ Where it does not show:
 - WhatsApp Web hides group statuses of archived or locked chats, and of groups it does not trust: you are not the owner, and neither the owner, whoever added you, nor any admin is in your contacts.
 - A phone where WhatsApp has not turned group statuses on shows "Someone shared a group status. Update to the latest version of WhatsApp" in the group chat instead (read in the decompiled Android app, not observed).
 
+### Meta AI
+
+`/ai <question>` sends the question to Meta AI from the paired account (zapo's `client.bot`) and posts the answer in the chat that asked.
+
+- **One bubble.** The bot first sends "Thinking…" quoting the question, then edits that message into the answer, so WhatsApp shows the "Edited" tag on it. Meta AI streams its answer as edits of one message; the bot waits for the last snapshot (about 1 to 3 s) and posts it once. If the placeholder cannot be sent or edited, the answer goes out as a new message.
+- **Conversations.** Each chat has its own Meta AI thread, so a follow-up keeps the context. A chat that asks nothing for 30 minutes starts a new thread, and in a group everyone shares one. Threads live in memory and start over after a restart. The threads do not wall the chats off from each other: see **Memory is shared** below.
+- **Memory is shared.** Meta AI ties what it remembers to the paired account, not to the thread: a code word told in one chat came back when another chat asked what someone had told it, in the same run and after a restart. Anyone who may use `/ai` can therefore read what the others told it, and what the account itself told Meta AI. Treat the allowlist as one circle of trust, never put a secret in `AI_SYSTEM_PROMPT`, and prefer a number used only for the bot. Asking the model in the prompt to keep conversations apart did not work: the wordings that blocked the leak also broke follow-ups in the same chat.
+- **System prompt.** `AI_SYSTEM_PROMPT` is put before the first question of each thread, because Meta AI has no system prompt field. It can be as long as you like (a name for the assistant, what the bot does, its commands): wrap it in double quotes to write it on several lines. The bot adds nothing about itself, so what the assistant knows about the bot is only what this text says.
+- **What shows up.** Text as it comes (WhatsApp formatting kept), a table as a monospace block, code as a fenced block. A part the bot cannot show (an image, for instance) is dropped and the answer ends with a note. Image generation is not supported.
+- **One at a time.** The bot sends one prompt to Meta AI at a time, for all chats, first come first served. The others keep their "Thinking…" on screen until their turn, and the 35 seconds below count from the moment a prompt is sent, not from the wait.
+- **Failures** are written into the placeholder: no answer within 35 seconds (an answer that had started is posted as it was, with a note that it was cut short), "There was a technical problem with Meta AI. Try again later." when the server refuses Meta AI for the account (error 488), the prompt could not be sent for another reason, or an answer with nothing the bot can show.
+- **Self-healing.** Meta AI now and then loses its side of the encrypted session with the paired account and silently stops answering. Before the first question of each new conversation the bot drops its stored session with Meta AI, and a chat whose question got no reply at all starts a new conversation, so its next question drops the session again. A stale session can still cost one question in another chat that has a live conversation before that chat gets its own reset. See entry 21 in [docs/gotchas.md](docs/gotchas.md).
+- **Where it shows.** The question and the answer also appear in the "Meta AI" chat on the phone of the paired account.
+- **Language.** Without a system prompt Meta AI picks the answer language itself: it mostly followed the account's language, but the same English question came back in English and in Portuguese. Pin it with `AI_SYSTEM_PROMPT`. In the tests `Reply in the same language the question is written in, even if your default language is different: an English question gets an English answer and a Portuguese question gets a Portuguese answer.` was right 7 times out of 7, and `Always answer in Brazilian Portuguese.` 3 out of 3; the shorter `Always answer in the same language as the question.` missed 1 of 3. The prompt travels only with the first question of a conversation, and a conversation that alternates languages weakens it: in an 8-question test that switched between English and Portuguese the answer had the right language 5 and 6 times out of 8 in two runs (it missed on a first message that was a statement, not a question, and on English questions that followed Portuguese ones), because Meta AI tends to follow the language of the recent messages. Repeating a short reminder in every question did not help (5 out of 8), so the bot does not.
+
+**AI label.** In private chats the bot sends the placeholder (and the new message, when an edit fails) with the stanza child WhatsApp uses to mark the replies of a business AI, `<bot biz_bot="1"/>`, so the contact sees "IA" next to the time. It is always on, with no switch, and it comes with caveats:
+
+- **Private chats only.** The server refuses the node in groups (NACK 479), so groups never get it. It also applies when you type `/ai` in a chat with someone who is not in `ALLOWED_NUMBERS`.
+- **Only the first stanza counts.** The mark sits on the placeholder and survives the edit; a node on the edit alone does nothing.
+- **With the Meta-hosted banner.** `META_HOSTED_BANNER=true` works together with `/ai`: in a private chat the bot had not written to yet in that run, the 👋 goes out first without the label, then the "Thinking…" carries both the label and the hosted stamp, and the edit and any fallback message go out untouched. The prompt to Meta AI does not pass through that stamping. Seen on the phone and on Web, where the banner showed as well.
+- **WhatsApp adds a notice, once.** The first labeled message in a chat makes the contact's WhatsApp insert a system line saying that Meta AI receives the messages of the conversation and may use them to improve itself and to generate messages for the business (seen in Portuguese: "A IA da Meta recebe as mensagens da conversa ..."). It says more than the bot does: only the `/ai` question goes to Meta AI.
+- **It is a stamp WhatsApp did not authorize for ordinary accounts.** The server passes it today; the effect on the account in the long run was not measured and WhatsApp may stop passing it in any release. If the server rejects a labeled send, the bot sends it again without the label. See entries 18 to 20 in [docs/gotchas.md](docs/gotchas.md).
+
 ### Project Structure
 
 | File | What to copy from it |
@@ -211,6 +240,9 @@ Where it does not show:
 | [src/examples/group-status.ts](src/examples/group-status.ts) | `groupStatusMessageV2` with the `<meta is_group_status>` node (`/group-status`) |
 | [assets/](assets/) | the banner and thumbnail `/group-status` posts |
 | [src/examples/menu.ts](src/examples/menu.ts) | classic `listMessage` that also renders on WhatsApp Web, and the same menu as a poll (`/poll`) |
+| [src/lib/meta-ai.ts](src/lib/meta-ai.ts) | `client.bot.sendPrompt` and the streamed answer: one question at a time for the whole bot, threads per chat, the system prompt, chunks matched by prompt id, dropping the stale session with Meta AI (`/ai`) |
+| [src/lib/meta-ai-render.ts](src/lib/meta-ai-render.ts) | Meta AI's rich answer (text, table, code) as WhatsApp text |
+| [src/bot/ai-reply.ts](src/bot/ai-reply.ts) | the `/ai` flow: "Thinking…" edited into the answer, and the AI label node |
 | [src/bot/](src/bot/) | the bot: access rules, command routing, cart reaction |
 | [src/cli/send.ts](src/cli/send.ts) | the send CLI |
 | [test/](test/) | unit tests for the pure parts (config, access, commands, payload builders) |
@@ -223,6 +255,10 @@ Where it does not show:
 - Catalog examples need products already shared from the app (no catalog API yet).
 - When a recipient's device asks for a message again (retry receipt), zapo rebuilds it without any `<biz>` node: that copy loses the list menu's `<list>` node and the Meta-hosted stamp. It also loses the group status `<meta>` node, though it keeps the wrapper, which is what receivers read (read in WhatsApp Web's code, not observed).
 - The bot recognizes a `/poll` only while it keeps running (it remembers in memory the ids of what it sent): after a restart, an old poll stays in the chat and its votes do nothing.
+- `/ai` conversations and the queue of questions live in memory: after a restart the conversations start over, and a question that was in flight or waiting in the queue keeps its "Thinking…" message forever.
+- `/ai` has no wall between chats on the Meta AI side: what one chat told it can come back in another (see **Memory is shared** under [Meta AI](#meta-ai)).
+- `/ai` shows no images: Meta AI's image generation never delivered a picture in the tests, so an answer made only of an image is reported as something the bot cannot show.
+- The questions of `/ai` go to Meta AI from the paired account and stay in that account's "Meta AI" chat on the phone; without an `AI_SYSTEM_PROMPT` the answer language is Meta AI's choice and varies.
 
 ### Documentation
 
