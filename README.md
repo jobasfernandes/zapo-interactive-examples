@@ -63,7 +63,7 @@ Every example here was checked on an Android phone and on WhatsApp Web. What ren
 - **Orders** -- the seller's `review_and_pay` cards, sent as a reaction to a buyer's cart
 - **PIX** -- the static PIX key card and a PIX charge that opens the native payment flow on the phone
 - **Poll menu** -- the examples as a poll: each vote is decrypted and runs the example it picks, and the poll stays in the chat as a menu
-- **Meta AI** -- `/ai <question>` relays the question to Meta AI through the paired account; a "Thinking…" message is edited into the answer, with the AI label in private chats
+- **Meta AI** -- `/ai <question>` relays the question to Meta AI through the paired account; a "Thinking…" message is edited into the answer, with the AI label in private chats; a photo with `/ai` as its caption is sent along
 - **Group status** -- the repo banner posted as a status of a group (`groupStatusMessageV2`), from the bot or the CLI
 - **Test bot** -- `/commands` and a list menu, access limited to allowed numbers and groups
 - **Send CLI** -- one example to one chat, no bot needed
@@ -113,7 +113,7 @@ A vote on a `/poll` follows the same rules as a command: the voter must be allow
 |---|---|---|
 | `/menu` | a list with every example; picking a row runs it | no |
 | `/poll` | a poll with every example; every vote runs the example it picks, and the poll stays in the chat | no |
-| `/ai <question>` | the answer from Meta AI: a "Thinking…" message quoting the question is edited into it; follow-ups in the chat keep the context for 30 minutes (see [Meta AI](#meta-ai)) | no |
+| `/ai <question>` | the answer from Meta AI: a "Thinking…" message quoting the question is edited into it; follow-ups in the chat keep the context for 30 minutes; as the caption of a photo it asks about the photo (see [Meta AI](#meta-ai)) | no |
 | `/help` | the command list as text | no |
 | `/buttons` | legacy buttons, quick reply buttons, CTA buttons (link, call, copy) | no |
 | `/carousel` | generic carousel: image cards with a quick reply and a link | no |
@@ -204,6 +204,7 @@ Where it does not show:
 `/ai <question>` sends the question to Meta AI from the paired account (zapo's `client.bot`) and posts the answer in the chat that asked.
 
 - **One bubble.** The bot first sends "Thinking…" quoting the question, then edits that message into the answer, so WhatsApp shows the "Edited" tag on it. Meta AI streams its answer as edits of one message; the bot waits for the last snapshot (about 1 to 3 s) and posts it once. If the placeholder cannot be sent or edited, the answer goes out as a new message.
+- **Photos.** Send a photo with `/ai <question>` as its caption and Meta AI looks at it: it read the chat name and the text of a screenshot and described a photo in the tests. A caption of only `/ai` asks it to describe the photo. The photo stays in the conversation, so the next `/ai` in the chat can ask about it. Only a photo and only its own caption count: a reply to a photo, a video, a document or a sticker is not read, and `/menu`, `/pix` and the other commands do nothing as a caption. The photo goes to Meta AI from the paired account like the question does. Checked on the phone and on Web.
 - **Conversations.** Each chat has its own Meta AI thread, so a follow-up keeps the context. A chat that asks nothing for 30 minutes starts a new thread, and in a group everyone shares one. Threads live in memory and start over after a restart. The threads do not wall the chats off from each other: see **Memory is shared** below.
 - **Memory is shared.** Meta AI ties what it remembers to the paired account, not to the thread: a code word told in one chat came back when another chat asked what someone had told it, in the same run and after a restart. Anyone who may use `/ai` can therefore read what the others told it, and what the account itself told Meta AI. Treat the allowlist as one circle of trust, never put a secret in `AI_SYSTEM_PROMPT`, and prefer a number used only for the bot. Asking the model in the prompt to keep conversations apart did not work: the wordings that blocked the leak also broke follow-ups in the same chat.
 - **System prompt.** `AI_SYSTEM_PROMPT` is put before the first question of each thread, because Meta AI has no system prompt field. It can be as long as you like (a name for the assistant, what the bot does, its commands): wrap it in double quotes to write it on several lines. The bot adds nothing about itself, so what the assistant knows about the bot is only what this text says.
@@ -242,7 +243,8 @@ Where it does not show:
 | [src/examples/menu.ts](src/examples/menu.ts) | classic `listMessage` that also renders on WhatsApp Web, and the same menu as a poll (`/poll`) |
 | [src/lib/meta-ai.ts](src/lib/meta-ai.ts) | `client.bot.sendPrompt` and the streamed answer: one question at a time for the whole bot, threads per chat, the system prompt, chunks matched by prompt id, dropping the stale session with Meta AI (`/ai`) |
 | [src/lib/meta-ai-render.ts](src/lib/meta-ai-render.ts) | Meta AI's rich answer (text, table, code) as WhatsApp text |
-| [src/bot/ai-reply.ts](src/bot/ai-reply.ts) | the `/ai` flow: "Thinking…" edited into the answer, and the AI label node |
+| [src/bot/ai-reply.ts](src/bot/ai-reply.ts) | the `/ai` flow: "Thinking…" edited into the answer, the photo it loads first, and the AI label node |
+| [src/lib/incoming-image.ts](src/lib/incoming-image.ts) | downloads and decrypts the photo of a message, for `/ai` with a photo |
 | [src/bot/](src/bot/) | the bot: access rules, command routing, cart reaction |
 | [src/cli/send.ts](src/cli/send.ts) | the send CLI |
 | [test/](test/) | unit tests for the pure parts (config, access, commands, payload builders) |
@@ -257,7 +259,8 @@ Where it does not show:
 - The bot recognizes a `/poll` only while it keeps running (it remembers in memory the ids of what it sent): after a restart, an old poll stays in the chat and its votes do nothing.
 - `/ai` conversations and the queue of questions live in memory: after a restart the conversations start over, and a question that was in flight or waiting in the queue keeps its "Thinking…" message forever.
 - `/ai` has no wall between chats on the Meta AI side: what one chat told it can come back in another (see **Memory is shared** under [Meta AI](#meta-ai)).
-- `/ai` shows no images: Meta AI's image generation never delivered a picture in the tests, so an answer made only of an image is reported as something the bot cannot show.
+- `/ai` shows no images: Meta AI's image generation never delivered a picture in the tests, so an answer made only of an image is reported as something the bot cannot show. It reads photos, it does not draw them.
+- `/ai` with a photo reads only the caption of a photo. Quoting a photo with `/ai` does nothing, the bot never looks at the image of the message it replies to.
 - The questions of `/ai` go to Meta AI from the paired account and stay in that account's "Meta AI" chat on the phone; without an `AI_SYSTEM_PROMPT` the answer language is Meta AI's choice and varies.
 
 ### Documentation

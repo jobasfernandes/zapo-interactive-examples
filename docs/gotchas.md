@@ -17,7 +17,8 @@ Silent failures found while building these examples, as symptom and cause. Read 
 | `src/lib/meta-ai.ts`, `/ai` | 17 |
 | `src/bot/ai-reply.ts`, the AI label (`<bot biz_bot="1"/>`) | 18, 19, 20 |
 | `forgetBotSession`, the Meta AI session | 21 |
-| `AI_SYSTEM_PROMPT`, who may use `/ai` | 22 |
+| `AI_SYSTEM_PROMPT`, who may use `/ai` | 22, 23 |
+| `src/lib/incoming-image.ts`, `/ai` with a photo | 23 |
 
 ## 1. A2UI form shows "not supported" on Android
 
@@ -164,3 +165,10 @@ Silent failures found while building these examples, as symptom and cause. Read 
 - **Symptom:** asking `/ai` in one chat what code word or fact someone told it earlier returns what another chat said, in the same run and also after a restart. "What do you remember about me?" lists facts from other chats.
 - **Cause:** Meta AI ties its memory to the paired account, not to `aiThreadId`: a thread per chat keeps the follow-ups of one chat together, but it is no wall between chats. Measured with code words planted in one chat and asked for in another; without a guardrail the word came back in every run.
 - **Fix:** none in code. Asking the model in `AI_SYSTEM_PROMPT` to keep conversations apart did not work: a generic sentence let the word through; "start fresh and keep nothing" blocked it but makes the model say something false; an honest "I cannot share anything from other conversations" blocked it but also refused a follow-up in the same chat; and a version that allowed the current conversation leaked again and refused the person's own data. So treat the allowlist as one circle of trust, never put a secret in `AI_SYSTEM_PROMPT`, and give the bot a number of its own, because the account's memory also holds whatever its owner told Meta AI.
+
+
+## 23. Meta AI says it cannot see the photo it just described
+
+- **Symptom:** `/ai` with a photo answers "I cannot see images" (or "Não consigo ver ou criar imagens"), often followed by an accurate description of that very photo, or answers a question about its own abilities instead of about the photo.
+- **Cause:** the model follows the `AI_SYSTEM_PROMPT` and the bot's own words about what it cannot do. A sentence such as "you cannot create or show images" made it deny seeing images, and asking "can you see this image?" as the caption is a question about abilities. The photo itself reached Meta AI every time: it read the chat name and the pinned title of a screenshot and kept the photo for a follow-up in the same thread. The same prompt text also showed up in a thread that never carried it, because Meta AI shares its memory between the chats of the paired account (gotcha 22).
+- **Fix:** word the prompt as what the assistant can do: "you can look at a photo sent with /ai as its caption (describe it, read its text, answer about it), but you cannot create or edit images". Ask about the content ("what does it say at the top?"), not about the ability.
