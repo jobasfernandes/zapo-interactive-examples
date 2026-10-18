@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { proto, type WaIncomingAddonEvent, type WaIncomingMessageEvent } from 'zapo-js'
 
-import { AI_USAGE, chatContext, decide, decideVote, GROUP_STATUS_USAGE, groupStatusFailureReply, isStale, responseReply } from '../src/bot/handle.js'
+import { AI_USAGE, chatContext, decide, DESCRIBE_IMAGE_QUESTION, decideVote, GROUP_STATUS_USAGE, groupStatusFailureReply, isStale, responseReply } from '../src/bot/handle.js'
 import { groupStatusExample } from '../src/examples/group-status.js'
 import { COMMANDS, EXAMPLES, findExample } from '../src/examples/index.js'
 import { buildMenu, buildPollMenu, HELP_TEXT } from '../src/examples/menu.js'
@@ -193,8 +193,8 @@ describe('decide /ai', () => {
     const groupConfig = parseConfig({ ALLOWED_NUMBERS: '5511999999999', ALLOWED_GROUPS: '120363000000000000@g.us' })
 
     it('hands the raw question to the bot, line breaks kept, for the owner and allowed contacts', () => {
-        expect(decide(event(text('/ai what is\na webhook?')), allowed, config, new Set())).toEqual({ kind: 'ai', question: 'what is\na webhook?' })
-        expect(decide(event(text('/AI hello')), owner, config, new Set())).toEqual({ kind: 'ai', question: 'hello' })
+        expect(decide(event(text('/ai what is\na webhook?')), allowed, config, new Set())).toEqual({ kind: 'ai', question: 'what is\na webhook?', withImage: false })
+        expect(decide(event(text('/AI hello')), owner, config, new Set())).toEqual({ kind: 'ai', question: 'hello', withImage: false })
     })
 
     it('answers an empty question with the usage', () => {
@@ -205,12 +205,53 @@ describe('decide /ai', () => {
 
     it('follows the allowlist rules', () => {
         expect(decide(event(text('/ai hi')), stranger, config, new Set())).toEqual({ kind: 'denied' })
-        expect(decide(event(text('/ai hi')), group, groupConfig, new Set())).toEqual({ kind: 'ai', question: 'hi' })
+        expect(decide(event(text('/ai hi')), group, groupConfig, new Set())).toEqual({ kind: 'ai', question: 'hi', withImage: false })
         expect(decide(event(text('/ai hi')), group, config, new Set())).toEqual({ kind: 'denied' })
     })
 
     it('ignores the echo of an answer the bot sent, even when it starts with /ai', () => {
         expect(decide(event(text('/ai is a command'), 'BOT2'), owner, config, new Set(['BOT2']))).toEqual({ kind: 'ignore' })
+    })
+
+    describe('as the caption of a photo', () => {
+        const photo = (caption: string | undefined, id = 'IMG1') => event({ imageMessage: { mimetype: 'image/jpeg', caption } }, id)
+
+        it('asks about the photo with the text after /ai, for the owner and allowed contacts', () => {
+            const action = { kind: 'ai', question: 'what is this?', withImage: true }
+            expect(decide(photo('/ai what is this?'), owner, config, new Set())).toEqual(action)
+            expect(decide(photo('/AI what is this?'), allowed, config, new Set())).toEqual(action)
+            expect(decide(photo('/ai what is\nthis?'), allowed, config, new Set())).toEqual({ kind: 'ai', question: 'what is\nthis?', withImage: true })
+        })
+
+        it('asks to describe the photo when the caption is only /ai', () => {
+            expect(DESCRIBE_IMAGE_QUESTION).toBe('Describe this image.')
+            expect(decide(photo('/ai'), owner, config, new Set())).toEqual({ kind: 'ai', question: DESCRIBE_IMAGE_QUESTION, withImage: true })
+            expect(decide(photo('  /ai   '), allowed, config, new Set())).toEqual({ kind: 'ai', question: DESCRIBE_IMAGE_QUESTION, withImage: true })
+        })
+
+        it('follows the allowlist rules', () => {
+            expect(decide(photo('/ai what is this?'), stranger, config, new Set())).toEqual({ kind: 'denied' })
+            expect(decide(photo('/ai hi'), group, groupConfig, new Set())).toEqual({ kind: 'ai', question: 'hi', withImage: true })
+            expect(decide(photo('/ai hi'), group, config, new Set())).toEqual({ kind: 'denied' })
+        })
+
+        it('leaves every other caption alone: only /ai runs from a photo', () => {
+            expect(decide(photo('/menu'), owner, config, new Set())).toEqual({ kind: 'ignore' })
+            expect(decide(photo('/pix'), allowed, config, new Set())).toEqual({ kind: 'ignore' })
+            expect(decide(photo('look at this /ai'), owner, config, new Set())).toEqual({ kind: 'ignore' })
+            expect(decide(photo('what is this?'), owner, config, new Set())).toEqual({ kind: 'ignore' })
+            expect(decide(photo(undefined), owner, config, new Set())).toEqual({ kind: 'ignore' })
+            expect(decide(photo('/menu'), stranger, config, new Set())).toEqual({ kind: 'ignore' })
+        })
+
+        it('does not read /ai from the caption of a video or a document', () => {
+            expect(decide(event({ videoMessage: { caption: '/ai what is this?' } }), owner, config, new Set())).toEqual({ kind: 'ignore' })
+            expect(decide(event({ documentMessage: { caption: '/ai what is this?' } }), owner, config, new Set())).toEqual({ kind: 'ignore' })
+        })
+
+        it('ignores the echo of a photo the bot sent', () => {
+            expect(decide(photo('/ai what is this?', 'BOT3'), owner, config, new Set(['BOT3']))).toEqual({ kind: 'ignore' })
+        })
     })
 
     it('is a bot action, not an example', () => {
@@ -219,7 +260,9 @@ describe('decide /ai', () => {
     })
 
     it('is listed in the help text', () => {
-        expect(HELP_TEXT(EXAMPLES).split('\n')).toContain('• /ai <question>: asks Meta AI; a chat keeps its conversation for 30 minutes of idleness')
+        expect(HELP_TEXT(EXAMPLES).split('\n')).toContain(
+            '• /ai <question>: asks Meta AI (as the caption of a photo it asks about the photo); a chat keeps its conversation for 30 minutes of idleness'
+        )
     })
 })
 

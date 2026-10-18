@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { WaIncomingMessageEvent, WaSendMessageOptions } from 'zapo-js'
 
 import { answerWithAi, THINKING_TEXT } from '../src/bot/ai-reply.js'
-import type { MetaAiAnswer } from '../src/lib/meta-ai.js'
+import type { MetaAiAnswer, MetaAiImage } from '../src/lib/meta-ai.js'
 
 const LABEL = { tag: 'bot', attrs: { biz_bot: '1' }, content: undefined }
 const quote = { key: { id: 'Q1' } } as unknown as WaIncomingMessageEvent
@@ -16,6 +16,7 @@ type Options = {
     /** 1-based numbers of the `send` calls that throw; failed calls count too. */
     failSends?: readonly number[]
     holdFirstSend?: Promise<void>
+    loadImage?: () => Promise<MetaAiImage>
 }
 
 /** Runs the flow against fakes. `send` answers `M<call number>` and records every call, failed ones included. */
@@ -23,6 +24,7 @@ function run(options: Options = {}) {
     const sends: { text: string; options: WaSendMessageOptions }[] = []
     const events: string[] = []
     const asked: string[] = []
+    const images: (MetaAiImage | undefined)[] = []
     const logs: string[] = []
     const failing = new Set(options.failSends ?? [])
     const done = answerWithAi(
@@ -35,18 +37,29 @@ function run(options: Options = {}) {
                 if (failing.has(number)) throw new Error(`send ${number} failed`)
                 return `M${number}`
             },
-            ask: async (question) => {
+            ask: async (question, image) => {
                 events.push('ask')
                 asked.push(question)
+                images.push(image)
                 return options.answer ?? ok('The answer')
             },
             log: (message) => {
                 logs.push(message)
             }
         },
-        { question: options.question ?? 'q', quote, isGroup: options.isGroup ?? false }
+        {
+            question: options.question ?? 'q',
+            quote,
+            isGroup: options.isGroup ?? false,
+            loadImage: options.loadImage
+                ? async () => {
+                      events.push('load')
+                      return options.loadImage!()
+                  }
+                : undefined
+        }
     )
-    return { done, sends, events, asked, logs }
+    return { done, sends, events, asked, images, logs }
 }
 
 describe('answerWithAi', () => {
@@ -61,6 +74,49 @@ describe('answerWithAi', () => {
         ])
         expect(flow.events).toEqual(['send 1', 'ask', 'send 2'])
         expect(flow.asked).toEqual(['q'])
+    })
+
+    it('asks without a photo when the message has none', async () => {
+        const flow = run()
+        await flow.done
+
+        expect(flow.images).toEqual([undefined])
+    })
+
+    it('loads the photo after the placeholder and before asking, and hands it to ask', async () => {
+        const photo = { data: new Uint8Array([9]), mimetype: 'image/png' }
+        const flow = run({ loadImage: async () => photo })
+        await flow.done
+
+        expect(flow.events).toEqual(['send 1', 'load', 'ask', 'send 2'])
+        expect(flow.images).toEqual([photo])
+    })
+
+    it('edits the placeholder with the photo failure and never asks when the photo cannot be read', async () => {
+        const flow = run({
+            loadImage: async () => {
+                throw new Error('media gone')
+            }
+        })
+        await flow.done
+
+        expect(flow.sends[1]).toEqual({ text: 'Could not read the photo: media gone.', options: { quote, editKey: { id: 'M1' } } })
+        expect(flow.asked).toEqual([])
+        expect(flow.logs).toContain('AI failed: photo')
+    })
+
+    it('sends the photo failure as a plain new message when the placeholder was never sent', async () => {
+        // The labeled placeholder and its resend without the label both fail, so there is nothing to edit.
+        const flow = run({
+            failSends: [1, 2],
+            loadImage: async () => {
+                throw new Error('media gone')
+            }
+        })
+        await flow.done
+
+        expect(flow.sends[2]).toEqual({ text: 'Could not read the photo: media gone.', options: { quote } })
+        expect(flow.asked).toEqual([])
     })
 
     it('sends no label in a group', async () => {

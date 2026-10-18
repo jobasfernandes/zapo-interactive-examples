@@ -12,7 +12,7 @@ import {
     type MetaAiOptions
 } from '../src/lib/meta-ai.js'
 
-type Sent = { to: string; content: string; options: { aiThreadId: string; id: string } }
+type Sent = { to: string; content: Parameters<MetaAiClient['bot']['sendPrompt']>[1]; options: { aiThreadId: string; id: string } }
 
 const snapshot = (text: string) => ({ richResponseMessage: { messageType: 1, submessages: [{ messageType: 2, messageText: text }] } }) as proto.IMessage
 const edit = (text: string) => ({ protocolMessage: { type: 14, editedMessage: snapshot(text) } }) as proto.IMessage
@@ -137,6 +137,59 @@ describe('createMetaAi', () => {
         await b
 
         expect(sent.map((item) => item.options.aiThreadId)).toEqual(['thread-1', 'thread-2'])
+    })
+
+    describe('with a photo', () => {
+        const photo = { data: new Uint8Array([1, 2, 3]), mimetype: 'image/jpeg' }
+        const captionOf = (content: Sent['content']) => (typeof content === 'string' ? content : content.caption)
+
+        it('sends the photo with the question as its caption', async () => {
+            const { ai, sent, emit } = setup()
+            const pending = ai.ask('chat-a', 'what is this?', photo)
+            emit(chunk('PROMPT-1', 'last', snapshot('a cat')))
+
+            expect(await pending).toMatchObject({ ok: true, text: 'a cat' })
+            expect(sent[0]?.content).toEqual({ type: 'image', media: photo.data, mimetype: 'image/jpeg', caption: 'what is this?' })
+            expect(sent[0]?.options).toEqual({ aiThreadId: 'thread-1', id: 'PROMPT-1' })
+        })
+
+        it('puts the system prompt in the caption of the first question of a thread, and not of a follow-up', async () => {
+            const { ai, sent, emit } = setup({ systemPrompt: 'Be brief.' })
+            const first = ai.ask('chat-a', 'q1', photo)
+            emit(chunk('PROMPT-1', 'last', snapshot('a1')))
+            await first
+            const second = ai.ask('chat-a', 'q2', photo)
+            emit(chunk('PROMPT-2', 'last', snapshot('a2')))
+            await second
+
+            expect(sent.map((item) => captionOf(item.content))).toEqual([WRAPPER('Be brief.', 'q1'), 'q2'])
+        })
+
+        it('sends a text follow-up as a plain string on the same thread', async () => {
+            const { ai, sent, emit } = setup()
+            const first = ai.ask('chat-a', 'what is this?', photo)
+            emit(chunk('PROMPT-1', 'last', snapshot('a cat')))
+            await first
+            const second = ai.ask('chat-a', 'and its color?')
+            emit(chunk('PROMPT-2', 'last', snapshot('orange')))
+            await second
+
+            expect(sent[1]?.content).toBe('and its color?')
+            expect(sent[1]?.options.aiThreadId).toBe(sent[0]?.options.aiThreadId)
+        })
+
+        it('reports a photo that cannot be sent like any failed send, and drops the thread', async () => {
+            let calls = 0
+            const { ai, emit } = setup({ systemPrompt: 'Be brief.' }, () => {
+                calls += 1
+                if (calls === 1) throw new Error('upload failed')
+            })
+            expect(await ai.ask('chat-a', 'q1', photo)).toEqual({ ok: false, reason: 'send-failed', detail: 'upload failed' })
+
+            const next = ai.ask('chat-a', 'q2')
+            emit(chunk('PROMPT-2', 'last', snapshot('a2')))
+            expect(await next).toMatchObject({ ok: true, threadNew: true })
+        })
     })
 
     it('ignores chunks of prompts it did not send', async () => {

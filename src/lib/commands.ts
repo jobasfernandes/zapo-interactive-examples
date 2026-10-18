@@ -25,6 +25,11 @@ export function unwrap(message: proto.IMessage | null | undefined): proto.IMessa
     }
 }
 
+/** The caption of a photo. Only photos: the caption of a video or a document is never read as a command. */
+export function extractImageCaption(message: proto.IMessage | null | undefined): string | null {
+    return unwrap(message)?.imageMessage?.caption ?? null
+}
+
 export function extractText(message: proto.IMessage | null | undefined): string | null {
     const inner = unwrap(message)
     return inner?.conversation ?? inner?.extendedTextMessage?.text ?? null

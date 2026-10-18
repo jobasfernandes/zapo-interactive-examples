@@ -1,6 +1,6 @@
 import type { WaIncomingMessageEvent, WaSendMessageOptions } from 'zapo-js'
 
-import type { MetaAiAnswer } from '../lib/meta-ai.js'
+import type { MetaAiAnswer, MetaAiImage } from '../lib/meta-ai.js'
 
 export const THINKING_TEXT = 'Thinking…'
 
@@ -11,11 +11,17 @@ const LABEL: Pick<WaSendMessageOptions, 'customNodes'> = { customNodes: [{ tag: 
 export type AiReplyDeps = {
     /** Sends `text` to the chat the question came from and returns the id of the message it sent. */
     send: (text: string, options: WaSendMessageOptions) => Promise<string>
-    ask: (question: string) => Promise<MetaAiAnswer>
+    ask: (question: string, image?: MetaAiImage) => Promise<MetaAiAnswer>
     log: (message: string) => void
 }
 
-export type AiReplyInput = { question: string; quote: WaIncomingMessageEvent; isGroup: boolean }
+export type AiReplyInput = {
+    question: string
+    quote: WaIncomingMessageEvent
+    isGroup: boolean
+    /** Set when the question is the caption of a photo: it runs after the placeholder, and a failure ends the question. */
+    loadImage?: () => Promise<MetaAiImage>
+}
 
 export function failureText(answer: Extract<MetaAiAnswer, { ok: false }>): string {
     switch (answer.reason) {
@@ -40,7 +46,7 @@ function describe(error: unknown): string {
  */
 export async function answerWithAi(deps: AiReplyDeps, input: AiReplyInput): Promise<void> {
     const { send, ask, log } = deps
-    const { question, quote, isGroup } = input
+    const { question, quote, isGroup, loadImage } = input
 
     // The label is cosmetic, so a send the server rejects with it goes out again without it.
     async function sendLabeled(text: string): Promise<string> {
@@ -60,8 +66,33 @@ export async function answerWithAi(deps: AiReplyDeps, input: AiReplyInput): Prom
         log(`AI placeholder not sent: ${describe(error)}`)
     }
 
+    // The placeholder becomes the text; when it cannot be edited (or never went out) the text is a new message.
+    async function deliver(text: string, fromMetaAi: boolean): Promise<void> {
+        if (placeholderId !== undefined) {
+            try {
+                await send(text, { quote, editKey: { id: placeholderId } })
+                return
+            } catch (error) {
+                log(`AI edit failed, sent as a new message: ${describe(error)}`)
+            }
+        }
+        // A new message is a first stanza again, so it can carry the label, but only an AI answer deserves it.
+        if (fromMetaAi) await sendLabeled(text)
+        else await send(text, { quote })
+    }
+
+    let image: MetaAiImage | undefined
+    if (loadImage) {
+        try {
+            image = await loadImage()
+        } catch (error) {
+            log('AI failed: photo')
+            return deliver(`Could not read the photo: ${describe(error)}.`, false)
+        }
+    }
+
     const startedAt = Date.now()
-    const answer = await ask(question)
+    const answer = await ask(question, image)
     if (answer.ok) {
         const seconds = ((Date.now() - startedAt) / 1000).toFixed(1)
         const thread = answer.threadNew ? 'new' : 'reused'
@@ -69,17 +100,5 @@ export async function answerWithAi(deps: AiReplyDeps, input: AiReplyInput): Prom
     } else {
         log(`AI failed: ${answer.reason}`)
     }
-    const text = answer.ok ? answer.text : failureText(answer)
-
-    if (placeholderId !== undefined) {
-        try {
-            await send(text, { quote, editKey: { id: placeholderId } })
-            return
-        } catch (error) {
-            log(`AI edit failed, sent as a new message: ${describe(error)}`)
-        }
-    }
-    // A new message is a first stanza again, so it can carry the label, but only an AI answer deserves it.
-    if (answer.ok) await sendLabeled(text)
-    else await send(text, { quote })
+    return deliver(answer.ok ? answer.text : failureText(answer), answer.ok)
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractSelection, extractText, parseCommand } from '../src/lib/commands.js'
+import { extractImageCaption, extractSelection, extractText, parseCommand } from '../src/lib/commands.js'
 
 describe('parseCommand', () => {
     it('parses a slash command with surrounding spaces and mixed case', () => {
@@ -41,6 +41,23 @@ describe('extractText', () => {
     it('returns null for non-text messages', () => {
         expect(extractText({ imageMessage: {} })).toBeNull()
         expect(extractText(undefined)).toBeNull()
+    })
+})
+
+describe('extractImageCaption', () => {
+    it('reads the caption of a photo, also through a wrapper', () => {
+        expect(extractImageCaption({ imageMessage: { caption: '/ai what is this?' } })).toBe('/ai what is this?')
+        expect(extractImageCaption({ ephemeralMessage: { message: { imageMessage: { caption: '/ai' } } } })).toBe('/ai')
+        expect(extractImageCaption({ viewOnceMessage: { message: { imageMessage: { caption: 'look' } } } })).toBe('look')
+    })
+
+    it('returns null without a photo caption', () => {
+        expect(extractImageCaption({ imageMessage: {} })).toBeNull()
+        expect(extractImageCaption({ imageMessage: { caption: null } })).toBeNull()
+        expect(extractImageCaption({ conversation: '/ai hi' })).toBeNull()
+        expect(extractImageCaption({ videoMessage: { caption: '/ai hi' } })).toBeNull()
+        expect(extractImageCaption({ documentMessage: { caption: '/ai hi' } })).toBeNull()
+        expect(extractImageCaption(undefined)).toBeNull()
     })
 })
 

@@ -15,6 +15,7 @@ import type { ExampleContext, SendContent } from '../examples/types.js'
 import { connectAndWait, createRuntime, ownJids } from '../lib/client.js'
 import { loadConfig } from '../lib/config.js'
 import { createLogger, formatResponse } from '../lib/log.js'
+import { readIncomingImage } from '../lib/incoming-image.js'
 import { createMetaAi, forgetBotSession } from '../lib/meta-ai.js'
 import { answerWithAi } from './ai-reply.js'
 import { chatContext, decide, decideVote, groupStatusFailureReply, isStale, responseReply } from './handle.js'
@@ -69,8 +70,8 @@ async function handle(event: WaIncomingMessageEvent, startedAtSeconds: number): 
             return reply(ctx.chatJid, buildPollMenu(EXAMPLES))
         case 'ai':
             return answerWithAi(
-                { send: (text, options) => send(ctx.chatJid, text, options), ask: (question) => metaAi.ask(ctx.chatJid, question), log },
-                { question: action.question, quote: event, isGroup: ctx.isGroup }
+                { send: (text, options) => send(ctx.chatJid, text, options), ask: (question, image) => metaAi.ask(ctx.chatJid, question, image), log },
+                { question: action.question, quote: event, isGroup: ctx.isGroup, loadImage: action.withImage ? () => readIncomingImage(event) : undefined }
             )
         case 'help':
             return reply(ctx.chatJid, HELP_TEXT(EXAMPLES))

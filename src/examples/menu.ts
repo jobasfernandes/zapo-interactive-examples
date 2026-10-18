@@ -52,7 +52,7 @@ export function HELP_TEXT(examples: readonly Example[]): string {
         'zapo-interactive-examples commands:',
         '• /menu: interactive list of the examples',
         '• /poll: the examples as a poll; every vote runs the example it picks and the poll stays in the chat',
-        '• /ai <question>: asks Meta AI; a chat keeps its conversation for 30 minutes of idleness',
+        '• /ai <question>: asks Meta AI (as the caption of a photo it asks about the photo); a chat keeps its conversation for 30 minutes of idleness',
         ...examples.map((example) => `• /${example.command}: ${example.description}`),
         '• /group-status <group-jid>: posts the repo banner as a status of that group (only groups in ALLOWED_GROUPS)',
         "• /groups: this account's groups and their ids, for ALLOWED_GROUPS (only in your own chat)",

@@ -14,8 +14,17 @@ export const CUT_SHORT_NOTE = '(The answer was cut short: Meta AI stopped before
 export type BotChunk = Pick<WaIncomingBotChunkEvent, 'targetMessageId' | 'editType' | 'message'>
 
 /** The two pieces of `WaClient` the router uses, so tests can stand in for it. */
+/** A photo that goes along with the question, as the caption of the prompt. */
+export type MetaAiImage = { data: Uint8Array; mimetype: string }
+
 export type MetaAiClient = {
-    bot: { sendPrompt: (to: string, content: string, options: { aiThreadId: string; id: string }) => Promise<{ id: string }> }
+    bot: {
+        sendPrompt: (
+            to: string,
+            content: string | { type: 'image'; media: Uint8Array; mimetype: string; caption: string },
+            options: { aiThreadId: string; id: string }
+        ) => Promise<{ id: string }>
+    }
     on: (event: 'message_bot_chunk', listener: (event: BotChunk) => void) => unknown
 }
 
@@ -81,7 +90,10 @@ function toAnswer(pending: Pending, complete: boolean, threadNew: boolean): Meta
  * chat, dropped after THREAD_IDLE_MS without questions. One question at a time for the whole bot, first come
  * first served, as whatsrook does: the next prompt goes out only once the previous one was answered or gave up.
  */
-export function createMetaAi(client: MetaAiClient, options: MetaAiOptions = {}): { ask: (chatJid: string, question: string) => Promise<MetaAiAnswer> } {
+export function createMetaAi(
+    client: MetaAiClient,
+    options: MetaAiOptions = {}
+): { ask: (chatJid: string, question: string, image?: MetaAiImage) => Promise<MetaAiAnswer> } {
     const { systemPrompt, now = Date.now, newThreadId = randomUUID, newPromptId = newMessageId, timeoutMs = ANSWER_TIMEOUT_MS, resetSession, onResetError } = options
     const threads = new Map<string, Thread>()
     // Keyed by prompt id: every chunk of an answer carries it as its target, so a late chunk of a prompt already given up on finds nothing.
@@ -100,7 +112,7 @@ export function createMetaAi(client: MetaAiClient, options: MetaAiOptions = {}):
         }
     })
 
-    async function run(chatJid: string, question: string): Promise<MetaAiAnswer> {
+    async function run(chatJid: string, question: string, image?: MetaAiImage): Promise<MetaAiAnswer> {
         const at = now()
         const known = threads.get(chatJid)
         const reused = known !== undefined && at - known.lastUsedAt < THREAD_IDLE_MS ? known : undefined
@@ -109,6 +121,7 @@ export function createMetaAi(client: MetaAiClient, options: MetaAiOptions = {}):
         threads.set(chatJid, thread)
         const threadNew = reused === undefined
         const text = threadNew && systemPrompt ? withSystemPrompt(systemPrompt, question) : question
+        const content = image ? { type: 'image' as const, media: image.data, mimetype: image.mimetype, caption: text } : text
 
         // Registered before the send: a chunk can arrive before sendPrompt resolves.
         const promptId = newPromptId()
@@ -120,7 +133,7 @@ export function createMetaAi(client: MetaAiClient, options: MetaAiOptions = {}):
                     .then(resetSession)
                     .catch((error: unknown) => onResetError?.(error))
             }
-            await client.bot.sendPrompt(WA_BOT_KNOWN_JIDS.META_AI_FBID, text, { aiThreadId: thread.id, id: promptId })
+            await client.bot.sendPrompt(WA_BOT_KNOWN_JIDS.META_AI_FBID, content, { aiThreadId: thread.id, id: promptId })
         } catch (error) {
             pending.delete(promptId)
             // A thread that never got its first prompt must not count as started: the system prompt would be lost.
@@ -146,8 +159,8 @@ export function createMetaAi(client: MetaAiClient, options: MetaAiOptions = {}):
         }
     }
 
-    function ask(chatJid: string, question: string): Promise<MetaAiAnswer> {
-        const turn = queue.then(() => run(chatJid, question))
+    function ask(chatJid: string, question: string, image?: MetaAiImage): Promise<MetaAiAnswer> {
+        const turn = queue.then(() => run(chatJid, question, image))
         // One chain serves the whole bot: a question that blows up must not stop the ones behind it.
         queue = turn.catch(() => undefined)
         return turn
