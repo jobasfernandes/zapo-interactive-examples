@@ -1,10 +1,11 @@
 /**
  * The test bot: `npm start`, pair with the QR on first run, then send `/menu`, `/poll`
  * or `/help` from an allowed chat. Every example is sent back to the chat the command
- * came from; a vote on a `/poll` runs its example the same way. See README.md for the
+ * came from; a vote on a `/poll` runs its example the same way, and `/ai <question>` is
+ * answered by Meta AI. See README.md for the
  * access rules.
  */
-import type { WaIncomingAddonEvent, WaIncomingMessageEvent } from 'zapo-js'
+import type { WaIncomingAddonEvent, WaIncomingMessageEvent, WaSendMessageOptions } from 'zapo-js'
 
 import { groupStatusExample } from '../examples/group-status.js'
 import { EXAMPLES } from '../examples/index.js'
@@ -14,16 +15,30 @@ import type { ExampleContext, SendContent } from '../examples/types.js'
 import { connectAndWait, createRuntime, ownJids } from '../lib/client.js'
 import { loadConfig } from '../lib/config.js'
 import { createLogger, formatResponse } from '../lib/log.js'
+import { createMetaAi, forgetBotSession } from '../lib/meta-ai.js'
+import { answerWithAi } from './ai-reply.js'
 import { chatContext, decide, decideVote, groupStatusFailureReply, isStale, responseReply } from './handle.js'
 
 const config = loadConfig()
 const runtime = await createRuntime(config)
 const { log } = createLogger('bot')
 const sentByBot = new Set<string>()
+const metaAi = createMetaAi(runtime.client, {
+    systemPrompt: config.aiSystemPrompt,
+    resetSession: () => forgetBotSession(runtime.store, runtime.sessionId),
+    onResetError: (error) => log(`ERROR AI session reset: ${error instanceof Error ? error.message : String(error)}`)
+})
 
 async function reply(chatJid: string, content: SendContent, quote?: WaIncomingMessageEvent): Promise<void> {
     const result = await runtime.client.message.send(chatJid, content, quote ? { quote } : undefined)
     sentByBot.add(result.id)
+}
+
+/** Like `reply`, for flows that need send options (quote, edit, label) and the id of what was sent. */
+async function send(chatJid: string, text: string, options: WaSendMessageOptions): Promise<string> {
+    const result = await runtime.client.message.send(chatJid, text, options)
+    sentByBot.add(result.id)
+    return result.id
 }
 
 async function handleVote(event: WaIncomingAddonEvent): Promise<void> {
@@ -52,6 +67,11 @@ async function handle(event: WaIncomingMessageEvent, startedAtSeconds: number): 
             return reply(ctx.chatJid, buildMenu(EXAMPLES))
         case 'poll':
             return reply(ctx.chatJid, buildPollMenu(EXAMPLES))
+        case 'ai':
+            return answerWithAi(
+                { send: (text, options) => send(ctx.chatJid, text, options), ask: (question) => metaAi.ask(ctx.chatJid, question), log },
+                { question: action.question, quote: event, isGroup: ctx.isGroup }
+            )
         case 'help':
             return reply(ctx.chatJid, HELP_TEXT(EXAMPLES))
         case 'groups': {

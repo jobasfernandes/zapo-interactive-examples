@@ -6,7 +6,7 @@ import { groupStatusExample } from '../examples/group-status.js'
 import { EXAMPLES, findExample } from '../examples/index.js'
 import type { Example } from '../examples/types.js'
 import { isAllowed, shouldHandle, type ChatContext } from '../lib/access.js'
-import { extractSelection, extractText, parseCommand, unwrap } from '../lib/commands.js'
+import { extractSelection, extractText, parseCommand, unwrap, type ParsedCommand } from '../lib/commands.js'
 import { parseGroupList, type Config } from '../lib/config.js'
 
 export type Action =
@@ -16,6 +16,8 @@ export type Action =
     | { kind: 'help' }
     | { kind: 'menu' }
     | { kind: 'poll' }
+    /** A question for Meta AI: the raw text after `/ai`, line breaks kept. */
+    | { kind: 'ai'; question: string }
     /** A valid vote on a poll the bot sent: run `example`. The poll stays in the chat, so every vote counts. */
     | { kind: 'poll-vote'; example: Example }
     | { kind: 'groups' }
@@ -26,6 +28,8 @@ export type Action =
     /** Post the group status to `groupJid`, an allowed group, then confirm in the chat that asked. */
     | { kind: 'group-status'; groupJid: string }
     | { kind: 'reply'; text: string }
+
+export const AI_USAGE = 'Usage: /ai <question>, e.g. /ai what is a webhook?'
 
 export const GROUP_STATUS_USAGE =
     'Usage: /group-status <group-jid>, e.g. /group-status 120363000000000000@g.us (only groups in ALLOWED_GROUPS).'
@@ -76,10 +80,11 @@ export function groupStatusFailureReply(groupJid: string, error: unknown): strin
     return `Could not post the group status to ${groupJid}: ${message}`
 }
 
-function commandAction(name: string, args: string[], ctx: ChatContext, config: Config): Action {
+function commandAction({ name, args, rest }: ParsedCommand, ctx: ChatContext, config: Config): Action {
     if (name === 'menu') return { kind: 'menu' }
     if (name === 'help') return { kind: 'help' }
     if (name === 'poll') return { kind: 'poll' }
+    if (name === 'ai') return rest ? { kind: 'ai', question: rest } : { kind: 'reply', text: AI_USAGE }
     // The group list is the owner's setup data: never post it to a contact or a group.
     if (name === 'groups') return ctx.fromMe && !ctx.isGroup && ctx.selfJids.includes(ctx.chatJid) ? { kind: 'groups' } : { kind: 'ignore' }
     // Before findExample: run as an example it would post to the chat the command came from.
@@ -152,7 +157,7 @@ export function decide(
 
     // A cart the owner sends is a purchase from another business, not one to answer.
     if (message?.orderMessage) return ctx.fromMe ? { kind: 'ignore' } : { kind: 'order', order: message.orderMessage }
-    if (command) return commandAction(command.name, command.args, ctx, config)
+    if (command) return commandAction(command, ctx, config)
 
     // The owner's own taps outside the self-chat are on someone else's message (a bank, a shop): answering them
     // would speak for the owner in that conversation, so they only reach the log.

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { proto, type WaIncomingAddonEvent, type WaIncomingMessageEvent } from 'zapo-js'
 
-import { chatContext, decide, decideVote, GROUP_STATUS_USAGE, groupStatusFailureReply, isStale, responseReply } from '../src/bot/handle.js'
+import { AI_USAGE, chatContext, decide, decideVote, GROUP_STATUS_USAGE, groupStatusFailureReply, isStale, responseReply } from '../src/bot/handle.js'
 import { groupStatusExample } from '../src/examples/group-status.js'
 import { COMMANDS, EXAMPLES, findExample } from '../src/examples/index.js'
 import { buildMenu, buildPollMenu, HELP_TEXT } from '../src/examples/menu.js'
@@ -185,6 +185,41 @@ describe('decide /poll', () => {
 
     it('keeps /poll out of the send CLI, which could not receive its votes', () => {
         expect(findExample('poll')).toBeUndefined()
+    })
+})
+
+describe('decide /ai', () => {
+    const group: ChatContext = { chatJid: '120363000000000000@g.us', isGroup: true, fromMe: false, senderPn: '5511999999999@s.whatsapp.net', selfJids }
+    const groupConfig = parseConfig({ ALLOWED_NUMBERS: '5511999999999', ALLOWED_GROUPS: '120363000000000000@g.us' })
+
+    it('hands the raw question to the bot, line breaks kept, for the owner and allowed contacts', () => {
+        expect(decide(event(text('/ai what is\na webhook?')), allowed, config, new Set())).toEqual({ kind: 'ai', question: 'what is\na webhook?' })
+        expect(decide(event(text('/AI hello')), owner, config, new Set())).toEqual({ kind: 'ai', question: 'hello' })
+    })
+
+    it('answers an empty question with the usage', () => {
+        expect(AI_USAGE).toBe('Usage: /ai <question>, e.g. /ai what is a webhook?')
+        expect(decide(event(text('/ai')), owner, config, new Set())).toEqual({ kind: 'reply', text: AI_USAGE })
+        expect(decide(event(text('/ai   ')), allowed, config, new Set())).toEqual({ kind: 'reply', text: AI_USAGE })
+    })
+
+    it('follows the allowlist rules', () => {
+        expect(decide(event(text('/ai hi')), stranger, config, new Set())).toEqual({ kind: 'denied' })
+        expect(decide(event(text('/ai hi')), group, groupConfig, new Set())).toEqual({ kind: 'ai', question: 'hi' })
+        expect(decide(event(text('/ai hi')), group, config, new Set())).toEqual({ kind: 'denied' })
+    })
+
+    it('ignores the echo of an answer the bot sent, even when it starts with /ai', () => {
+        expect(decide(event(text('/ai is a command'), 'BOT2'), owner, config, new Set(['BOT2']))).toEqual({ kind: 'ignore' })
+    })
+
+    it('is a bot action, not an example', () => {
+        expect(findExample('ai')).toBeUndefined()
+        expect(COMMANDS.some((example) => example.command === 'ai')).toBe(false)
+    })
+
+    it('is listed in the help text', () => {
+        expect(HELP_TEXT(EXAMPLES).split('\n')).toContain('• /ai <question>: asks Meta AI; a chat keeps its conversation for 30 minutes of idleness')
     })
 })
 

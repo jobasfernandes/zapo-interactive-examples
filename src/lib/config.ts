@@ -24,6 +24,8 @@ export type Config = {
     pix: PixConfig
     /** Stamps every private-chat message as hosted by Meta; see src/lib/biz-privacy.ts. */
     metaHostedBanner: boolean
+    /** Meta AI has no system field, so `/ai` puts this text before the first question of a conversation. */
+    aiSystemPrompt?: string
 }
 
 type Env = Record<string, string | undefined>
@@ -95,7 +97,8 @@ export function parseConfig(env: Env): Config {
             key: nonEmpty(env.PIX_KEY) ?? '+5511982905991',
             keyType: parsePixKeyType(env.PIX_KEY_TYPE)
         },
-        metaHostedBanner: parseFlag('META_HOSTED_BANNER', env.META_HOSTED_BANNER)
+        metaHostedBanner: parseFlag('META_HOSTED_BANNER', env.META_HOSTED_BANNER),
+        aiSystemPrompt: nonEmpty(env.AI_SYSTEM_PROMPT)
     }
 }
 

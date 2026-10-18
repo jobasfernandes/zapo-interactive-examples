@@ -8,7 +8,7 @@ import {
     type WaSqliteConnection,
     type WaSqliteStoreResult
 } from '@zapo-js/store-sqlite'
-import { ConsoleLogger, createStore, delay, toUserJid, WaClient } from 'zapo-js'
+import { ConsoleLogger, createStore, delay, toUserJid, WaClient, type WaStore } from 'zapo-js'
 
 import { installHostedPrivacyMode } from './biz-privacy.js'
 import type { Config } from './config.js'
@@ -21,6 +21,7 @@ const MAX_RECONNECT_ATTEMPTS = 10
 
 export type Runtime = {
     client: WaClient
+    store: WaStore
     sqlite: WaSqliteStoreResult
     /** Same connection the stores use; for read-only queries the store API does not offer. */
     connection: WaSqliteConnection
@@ -52,7 +53,7 @@ export async function createRuntime(config: Config): Promise<Runtime> {
     const client = new WaClient({ store, sessionId: config.sessionId }, new ConsoleLogger(config.logLevel))
     const armNativeFlow = installNativeFlowRewrite(client)
     if (config.metaHostedBanner) installHostedPrivacyMode(client)
-    return { client, sqlite, connection, sessionId: config.sessionId, armNativeFlow }
+    return { client, store, sqlite, connection, sessionId: config.sessionId, armNativeFlow }
 }
 
 /** Connects (showing the pairing QR when needed) and resolves on the first open connection. */

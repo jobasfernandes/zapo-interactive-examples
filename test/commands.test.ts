@@ -4,11 +4,24 @@ import { extractSelection, extractText, parseCommand } from '../src/lib/commands
 
 describe('parseCommand', () => {
     it('parses a slash command with surrounding spaces and mixed case', () => {
-        expect(parseCommand('  /Form  ')).toEqual({ name: 'form', args: [] })
+        expect(parseCommand('  /Form  ')).toEqual({ name: 'form', args: [], rest: '' })
     })
 
     it('splits arguments on whitespace', () => {
-        expect(parseCommand('/catalog all')).toEqual({ name: 'catalog', args: ['all'] })
+        expect(parseCommand('/catalog all')).toEqual({ name: 'catalog', args: ['all'], rest: 'all' })
+    })
+
+    it('keeps the raw text after the name, line breaks included', () => {
+        expect(parseCommand('/ai what is\na webhook?')).toEqual({ name: 'ai', args: ['what', 'is', 'a', 'webhook?'], rest: 'what is\na webhook?' })
+    })
+
+    it('has an empty rest when nothing follows the name', () => {
+        expect(parseCommand('/ai')).toEqual({ name: 'ai', args: [], rest: '' })
+        expect(parseCommand('  /AI   ')).toEqual({ name: 'ai', args: [], rest: '' })
+    })
+
+    it('trims the rest at both ends and keeps the spacing inside', () => {
+        expect(parseCommand('/ai   a   b  ')?.rest).toBe('a   b')
     })
 
     it('ignores text without a leading slash', () => {

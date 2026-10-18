@@ -41,6 +41,12 @@ describe('parseConfig', () => {
         })
     })
 
+    it('reads AI_SYSTEM_PROMPT and treats an empty or blank value as none', () => {
+        expect(parseConfig({ AI_SYSTEM_PROMPT: '  Answer in two sentences.  ' }).aiSystemPrompt).toBe('Answer in two sentences.')
+        expect(parseConfig({ AI_SYSTEM_PROMPT: '   ' }).aiSystemPrompt).toBeUndefined()
+        expect(parseConfig({}).aiSystemPrompt).toBeUndefined()
+    })
+
     it('rejects an unknown PIX_KEY_TYPE', () => {
         expect(() => parseConfig({ PIX_KEY_TYPE: 'IBAN' })).toThrow(/PIX_KEY_TYPE/)
         expect(parseConfig({ PIX_KEY: '+5511999999999', PIX_KEY_TYPE: 'phone' }).pix.keyType).toBe('PHONE')

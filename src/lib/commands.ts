@@ -1,13 +1,14 @@
 import type { proto } from 'zapo-js'
 
-export type ParsedCommand = { name: string; args: string[] }
+/** `rest` is the text after the name as typed: `args` loses the line breaks, which a pasted question needs. */
+export type ParsedCommand = { name: string; args: string[]; rest: string }
 
 export function parseCommand(text: string | null | undefined): ParsedCommand | null {
     const trimmed = text?.trim()
     if (!trimmed?.startsWith('/')) return null
     const [head, ...args] = trimmed.slice(1).split(/\s+/)
     if (!head) return null
-    return { name: head.toLowerCase(), args }
+    return { name: head.toLowerCase(), args, rest: trimmed.slice(1 + head.length).trim() }
 }
 
 export function unwrap(message: proto.IMessage | null | undefined): proto.IMessage | null | undefined {
